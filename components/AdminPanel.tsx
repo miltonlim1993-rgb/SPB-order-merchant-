@@ -616,34 +616,36 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
           const csvText = event.target?.result as string;
           const rows = parseCSV(csvText);
 
-          // Find Header Row (look for ItemID, allowing for BOM and extra chars)
+          // Find Header Row (look for ItemID or ID, allowing for BOM and extra chars)
           const headerRowIdx = rows.findIndex(row => row.some(cell => {
               const cleaned = cell.replace(/[\ufeff"*]/g, '').trim();
-              return cleaned === 'ItemID' || cleaned === 'Item ID';
+              return cleaned === 'ItemID' || cleaned === 'Item ID' || cleaned === 'ID';
           }));
           
           if (headerRowIdx === -1) {
-              showAlert("Invalid CSV Format: Could not find 'ItemID' header row.");
+              showAlert("Invalid CSV Format: Could not find 'ID' or 'ItemID' header row.");
               return;
           }
 
           // Clean headers to be key-friendly
-          const headers = rows[headerRowIdx].map(h => h.replace(/[\ufeff"*\s]+/g, '').trim()); 
+          const headers = rows[headerRowIdx].map(h => h.replace(/[\ufeff"*\s]+/g, '').trim().toLowerCase()); 
           
-          // Map header names to indices
-          const getIdx = (name: string) => headers.findIndex(h => h.includes(name));
+          // Map header names to indices (Flexible Matching)
+          const getIdx = (candidates: string[]) => headers.findIndex(h => candidates.some(c => h.includes(c.toLowerCase()) || h === c.toLowerCase()));
           
-          const idxID = getIdx('ItemID');
-          const idxName = getIdx('ItemName');
-          const idxPrice = getIdx('Price');
-          const idxCat = getIdx('CategoryName');
-          const idxDesc = getIdx('Description');
-          const idxStatus = getIdx('AvailableStatus');
-          const idxSchedule = getIdx('AvailabilitySchedule');
-          const idxPhoto = getIdx('Photo1');
+          const idxID = getIdx(['ItemID', 'Item ID', 'ID']);
+          const idxName = getIdx(['ItemName', 'Item Name', 'Name']);
+          const idxPrice = getIdx(['Price']);
+          const idxCat = getIdx(['CategoryName', 'Category Name', 'Category']);
+          const idxDesc = getIdx(['Description']);
+          const idxStatus = getIdx(['AvailableStatus', 'IsHidden', 'Is Hidden']);
+          const idxSchedule = getIdx(['AvailabilitySchedule', 'Schedule']);
+          const idxPhoto = getIdx(['Photo1', 'Photo', 'Image', 'ImageUrl']);
+          const idxMeat = getIdx(['MeatType', 'Meat Type']);
+          const idxComboPrice = getIdx(['ComboPrice', 'Combo Price']);
           
           // Identify Option Group Columns
-          const optionGroupIndices = headers.map((h, i) => h.includes('OptionGroup') ? i : -1).filter(i => i !== -1);
+          const optionGroupIndices = rows[headerRowIdx].map((h, i) => h.includes('OptionGroup') ? i : -1).filter(i => i !== -1);
 
           let newMenuItems = [...menuItems];
           let newConfig = { ...config };
@@ -652,21 +654,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
           // Process Data Rows
           for (let i = headerRowIdx + 1; i < rows.length; i++) {
               const row = rows[i];
-              if (row.length < 5) continue; // Skip empty/malformed rows
+              if (row.length < 3) continue; // Skip empty/malformed rows
 
-              const id = row[idxID]?.trim();
-              const name = row[idxName]?.trim();
-              const priceStr = row[idxPrice]?.trim();
+              const id = idxID !== -1 ? row[idxID]?.trim() : null;
+              const name = idxName !== -1 ? row[idxName]?.trim() : null;
+              const priceStr = idxPrice !== -1 ? row[idxPrice]?.trim() : null;
               
-              if (!id || !name || !priceStr || isNaN(parseFloat(priceStr))) continue; // Skip invalid data
+              if (!name || !priceStr || isNaN(parseFloat(priceStr))) continue; // Skip invalid data
 
               const price = parseFloat(priceStr);
-              const category = row[idxCat]?.trim() || 'Uncategorized';
-              const description = row[idxDesc]?.trim() || '';
-              const statusStr = row[idxStatus]?.trim();
-              const isHidden = statusStr !== 'AVAILABLE';
-              const schedule = row[idxSchedule]?.trim() || '';
-              const imageUrl = row[idxPhoto]?.trim() || '';
+              const category = (idxCat !== -1 ? row[idxCat]?.trim() : '') || 'Uncategorized';
+              const description = idxDesc !== -1 ? row[idxDesc]?.trim() : '';
+              
+              // Status Handling
+              let isHidden = false;
+              if (idxStatus !== -1) {
+                  const val = row[idxStatus]?.trim().toUpperCase();
+                  if (val === 'TRUE' || val === 'YES' || val === 'HIDDEN') isHidden = true;
+                  else if (val === 'AVAILABLE') isHidden = false;
+                  else if (val === 'FALSE' || val === 'NO') isHidden = false;
+              }
+
+              const schedule = idxSchedule !== -1 ? row[idxSchedule]?.trim() : '';
+              const imageUrl = idxPhoto !== -1 ? row[idxPhoto]?.trim() : '';
+              const meatType = idxMeat !== -1 ? row[idxMeat]?.trim() : 'All';
+              const comboPrice = idxComboPrice !== -1 ? parseFloat(row[idxComboPrice]?.trim()) : undefined;
 
               // 1. Upsert Category
               if (!newConfig.categories.some(c => c.name === category)) {
@@ -725,25 +737,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
               });
 
               // 3. Upsert Menu Item
-              const existingItemIndex = newMenuItems.findIndex(item => item.id === id);
+              const existingItemIndex = newMenuItems.findIndex(item => (id && item.id === id) || item.name === name);
+              
               const newItem: MenuItem = {
-                  id,
+                  id: id || (existingItemIndex >= 0 ? newMenuItems[existingItemIndex].id : `item-${Date.now()}-${i}`),
                   name,
                   price,
                   category,
                   description,
                   imageUrl: imageUrl || (existingItemIndex >= 0 ? newMenuItems[existingItemIndex].imageUrl : ''), // Keep existing image if CSV blank
                   isHidden,
-                  meatType: existingItemIndex >= 0 ? newMenuItems[existingItemIndex].meatType : 'All', // Preserve meat type or default
-                  linkedOptionGroupIds: linkedGroupIds,
-                  availabilitySchedule: schedule, // Map Schedule
-                  // Preserve other fields
-                  comboPrice: existingItemIndex >= 0 ? newMenuItems[existingItemIndex].comboPrice : undefined,
+                  meatType: meatType !== 'All' ? meatType : (existingItemIndex >= 0 ? newMenuItems[existingItemIndex].meatType : 'All'), 
+                  linkedOptionGroupIds: linkedGroupIds.length > 0 ? linkedGroupIds : (existingItemIndex >= 0 ? newMenuItems[existingItemIndex].linkedOptionGroupIds : []),
+                  availabilitySchedule: schedule, 
+                  comboPrice: comboPrice !== undefined ? comboPrice : (existingItemIndex >= 0 ? newMenuItems[existingItemIndex].comboPrice : undefined),
                   comboImageUrl: existingItemIndex >= 0 ? newMenuItems[existingItemIndex].comboImageUrl : undefined
               };
 
               if (existingItemIndex >= 0) {
-                  newMenuItems[existingItemIndex] = newItem;
+                  // Merge with existing item to preserve fields not in CSV (like options if not imported)
+                  newMenuItems[existingItemIndex] = {
+                      ...newMenuItems[existingItemIndex],
+                      ...newItem,
+                      // Ensure we don't overwrite with empty values if we want to preserve
+                      linkedOptionGroupIds: newItem.linkedOptionGroupIds && newItem.linkedOptionGroupIds.length > 0 ? newItem.linkedOptionGroupIds : newMenuItems[existingItemIndex].linkedOptionGroupIds
+                  };
               } else {
                   newMenuItems.push(newItem);
               }
