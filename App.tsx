@@ -12,6 +12,83 @@ const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [outlets, setOutlets] = useState<Outlet[]>(DEFAULT_OUTLETS);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(MENU_ITEMS);
+  const supabaseEnv = (import.meta as any).env || {};
+  const supabaseUrl = supabaseEnv.VITE_SUPABASE_URL as string | undefined;
+  const supabaseAnonKey = supabaseEnv.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const cloudSaveTimerRef = useRef<number | null>(null);
+  const loadCloudState = async () => {
+    if (!supabaseUrl || !supabaseAnonKey) return;
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=data,updated_at`, {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`
+        }
+      });
+      if (res.ok) {
+        const rows = await res.json();
+        const d = Array.isArray(rows) && rows[0]?.data ? rows[0].data : null;
+        if (d?.config) setConfig(d.config);
+        if (d?.outlets) setOutlets(d.outlets);
+        if (d?.menuItems) setMenuItems(d.menuItems);
+        return;
+      }
+      const res2 = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=config,menuitems,outlets,updated_at`, {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`
+        }
+      });
+      if (!res2.ok) return;
+      const rows2 = await res2.json();
+      const r = Array.isArray(rows2) ? rows2[0] : null;
+      if (r?.config) setConfig(r.config);
+      if (r?.outlets) setOutlets(r.outlets);
+      if (r?.menuitems) setMenuItems(r.menuitems);
+    } catch {}
+  };
+  const queueCloudSave = (payload: any) => {
+    if (!supabaseUrl || !supabaseAnonKey) return;
+    if (cloudSaveTimerRef.current) {
+      clearTimeout(cloudSaveTimerRef.current);
+    }
+    cloudSaveTimerRef.current = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`${supabaseUrl}/rest/v1/app_state`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            Prefer: 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify({
+            id: 'spb',
+            data: payload,
+            updated_at: new Date().toISOString()
+          })
+        });
+        if (!res.ok) {
+          await fetch(`${supabaseUrl}/rest/v1/app_state`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              apikey: supabaseAnonKey,
+              Authorization: `Bearer ${supabaseAnonKey}`,
+              Prefer: 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+              id: 'spb',
+              config: payload.config,
+              menuitems: payload.menuItems,
+              outlets: payload.outlets,
+              updated_at: new Date().toISOString()
+            })
+          });
+        }
+      } catch {}
+    }, 1000);
+  };
   useEffect(() => {
     try {
       const raw = localStorage.getItem('SPB_APP_STATE_V2');
@@ -24,10 +101,14 @@ const App: React.FC = () => {
     } catch {}
   }, []);
   useEffect(() => {
+    loadCloudState();
+  }, []);
+  useEffect(() => {
     try {
       const payload = JSON.stringify({ config, outlets, menuItems });
       localStorage.setItem('SPB_APP_STATE_V2', payload);
     } catch {}
+    queueCloudSave({ config, outlets, menuItems });
   }, [config, outlets, menuItems]);
   
   // --- USER SESSION STATE ---
