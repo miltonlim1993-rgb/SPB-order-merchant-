@@ -6,6 +6,7 @@ import { MenuItem, CartItem, MenuItemOption, AppConfig, Outlet, FlowGroup, AdPos
 import AdminPanel from './components/AdminPanel';
 import FlowModal from './components/FlowModal';
 import CartDrawer from './components/CartDrawer';
+import { createClient } from '@supabase/supabase-js';
 
 const App: React.FC = () => {
   // --- GLOBAL APP STATE ---
@@ -16,10 +17,28 @@ const App: React.FC = () => {
   const supabaseUrl = supabaseEnv.VITE_SUPABASE_URL as string | undefined;
   const supabaseAnonKey = supabaseEnv.VITE_SUPABASE_ANON_KEY as string | undefined;
   const cloudSaveTimerRef = useRef<number | null>(null);
+  const supabaseClientRef = useRef<any>(null);
+  const initialSyncReadyRef = useRef<boolean>(false);
+  const [isSyncingOverlay, setIsSyncingOverlay] = useState(false);
+  const triggerForceRefresh = async () => {
+    if (!supabaseUrl || !supabaseAnonKey) return;
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&apikey=${supabaseAnonKey}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify({ updated_at: new Date().toISOString() })
+      });
+    } catch {}
+  };
   const loadCloudState = async () => {
     if (!supabaseUrl || !supabaseAnonKey) return;
     try {
-      const res = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=data,updated_at`, {
+      const res = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=data,updated_at&apikey=${supabaseAnonKey}`, {
         headers: {
           apikey: supabaseAnonKey,
           Authorization: `Bearer ${supabaseAnonKey}`
@@ -31,9 +50,10 @@ const App: React.FC = () => {
         if (d?.config) setConfig(d.config);
         if (d?.outlets) setOutlets(d.outlets);
         if (d?.menuItems) setMenuItems(d.menuItems);
+        initialSyncReadyRef.current = true;
         return;
       }
-      const res2 = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=config,menuitems,outlets,updated_at`, {
+      const res2 = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=config,menuitems,outlets,updated_at&apikey=${supabaseAnonKey}`, {
         headers: {
           apikey: supabaseAnonKey,
           Authorization: `Bearer ${supabaseAnonKey}`
@@ -45,6 +65,7 @@ const App: React.FC = () => {
       if (r?.config) setConfig(r.config);
       if (r?.outlets) setOutlets(r.outlets);
       if (r?.menuitems) setMenuItems(r.menuitems);
+      initialSyncReadyRef.current = true;
     } catch {}
   };
   const queueCloudSave = (payload: any) => {
@@ -54,13 +75,13 @@ const App: React.FC = () => {
     }
     cloudSaveTimerRef.current = window.setTimeout(async () => {
       try {
-        const res = await fetch(`${supabaseUrl}/rest/v1/app_state`, {
+        const res = await fetch(`${supabaseUrl}/rest/v1/app_state?on_conflict=id&apikey=${supabaseAnonKey}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             apikey: supabaseAnonKey,
             Authorization: `Bearer ${supabaseAnonKey}`,
-            Prefer: 'resolution=merge-duplicates'
+            Prefer: 'resolution=merge-duplicates,return=representation'
           },
           body: JSON.stringify({
             id: 'spb',
@@ -69,13 +90,13 @@ const App: React.FC = () => {
           })
         });
         if (!res.ok) {
-          await fetch(`${supabaseUrl}/rest/v1/app_state`, {
+          await fetch(`${supabaseUrl}/rest/v1/app_state?on_conflict=id&apikey=${supabaseAnonKey}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               apikey: supabaseAnonKey,
               Authorization: `Bearer ${supabaseAnonKey}`,
-              Prefer: 'resolution=merge-duplicates'
+              Prefer: 'resolution=merge-duplicates,return=representation'
             },
             body: JSON.stringify({
               id: 'spb',
@@ -86,6 +107,7 @@ const App: React.FC = () => {
             })
           });
         }
+        await triggerForceRefresh();
       } catch {}
     }, 1000);
   };
@@ -102,13 +124,39 @@ const App: React.FC = () => {
   }, []);
   useEffect(() => {
     loadCloudState();
+    const t = setTimeout(() => { initialSyncReadyRef.current = true; }, 2000);
+    return () => clearTimeout(t);
   }, []);
+  useEffect(() => {
+    if (!supabaseUrl || !supabaseAnonKey) return;
+    if (!supabaseClientRef.current) {
+      supabaseClientRef.current = createClient(supabaseUrl, supabaseAnonKey);
+    }
+    const channel = supabaseClientRef.current
+      .channel('realtime-app-state')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state', filter: 'id=eq.spb' }, async () => {
+        try {
+          setIsSyncingOverlay(true);
+          await loadCloudState();
+        } finally {
+          setTimeout(() => setIsSyncingOverlay(false), 1000);
+        }
+      })
+      .subscribe();
+    const poll = setInterval(() => { loadCloudState(); }, 30000);
+    return () => {
+      try { supabaseClientRef.current?.removeChannel(channel); } catch {}
+      clearInterval(poll);
+    };
+  }, [supabaseUrl, supabaseAnonKey]);
   useEffect(() => {
     try {
       const payload = JSON.stringify({ config, outlets, menuItems });
       localStorage.setItem('SPB_APP_STATE_V2', payload);
     } catch {}
-    queueCloudSave({ config, outlets, menuItems });
+    if (initialSyncReadyRef.current || !supabaseUrl || !supabaseAnonKey) {
+      queueCloudSave({ config, outlets, menuItems });
+    }
   }, [config, outlets, menuItems]);
   
   // --- USER SESSION STATE ---
@@ -783,6 +831,14 @@ const App: React.FC = () => {
   // 2. Main App
   return (
     <div className="min-h-screen bg-brand-black font-sans">
+      {isSyncingOverlay && (
+        <div className="fixed inset-0 z-[999] bg-black/20 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white rounded-xl p-4 shadow-xl flex items-center gap-3">
+            <RefreshCw className="animate-spin text-brand-black" size={18} />
+            <span className="font-bold text-brand-black text-sm">Updating…</span>
+          </div>
+        </div>
+      )}
       <div className={`bg-[#F4F4F4] min-h-screen flex flex-col transition-all duration-300 ${(isCartOpen || isAdminOpen || flowActive || isAboutOpen || isCustomizingSubItem || showAdModal) ? 'scale-95 brightness-50 pointer-events-none rounded-2xl overflow-hidden h-screen' : 'scale-100 min-h-screen'}`}>
         
         {/* HEADER */}

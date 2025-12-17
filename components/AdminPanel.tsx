@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Settings, X, Plus, ChevronUp, ChevronDown, Edit2, Trash2, ArrowLeft, Check, Copy, GripVertical, Image as ImageIcon, MapPin, Layers, ArrowUp, ArrowDown, Save, Globe, Clock, Beef, LayoutList, Link, Calendar, Eye, ExternalLink, Zap, Lock, Database, Download, Upload, FileText, FileJson, AlertTriangle, Info, Grid } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Settings, X, Plus, ChevronUp, ChevronDown, Edit2, Trash2, ArrowLeft, Check, Copy, GripVertical, Image as ImageIcon, MapPin, Layers, ArrowUp, ArrowDown, Save, Globe, Clock, Beef, LayoutList, Link, Calendar, Eye, ExternalLink, Zap, Lock, Database, Download, Upload, FileText, FileJson, AlertTriangle, Info, Grid, RefreshCw } from 'lucide-react';
 import { AppConfig, MenuItem, Outlet, OptionGroup, MenuItemOption, Category, AdPoster } from '../types';
 
 interface AdminPanelProps {
@@ -56,6 +56,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
   const supabaseUrl = supabaseEnv.VITE_SUPABASE_URL as string | undefined;
   const supabaseAnonKey = supabaseEnv.VITE_SUPABASE_ANON_KEY as string | undefined;
   const isVercel = typeof window !== 'undefined' && (window.location.hostname.endsWith('.vercel.app') || window.location.hostname.endsWith('.vercel.dev'));
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupResult, setBackupResult] = useState<{ ok: boolean; status?: number; error?: string } | null>(null);
+  const [snapshots, setSnapshots] = useState<Array<{ id?: string; app_id?: string; created_at?: string; note?: string }>>([]);
+  const [isLoadingSnapshots, setIsLoadingSnapshots] = useState(false);
+  const [isForcingRefresh, setIsForcingRefresh] = useState(false);
+  const [forceResult, setForceResult] = useState<{ ok: boolean; status?: number; error?: string } | null>(null);
 
   const testSupabase = async () => {
     setIsTestingSupabase(true);
@@ -64,7 +70,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
       if (!supabaseUrl || !supabaseAnonKey) {
         setSupabaseResult({ ok: false, error: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY' });
       } else {
-        const res = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+        const res = await fetch(`${supabaseUrl}/auth/v1/settings?apikey=${supabaseAnonKey}`, {
           headers: {
             apikey: supabaseAnonKey,
             Authorization: `Bearer ${supabaseAnonKey}`,
@@ -83,6 +89,108 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
     }
   };
 
+  const loadSnapshots = async () => {
+    if (!supabaseUrl || !supabaseAnonKey) return;
+    setIsLoadingSnapshots(true);
+    try {
+      let res = await fetch(`${supabaseUrl}/rest/v1/app_state_snapshots?id=eq.spb&select=*,created_at&order=created_at.desc&limit=20&apikey=${supabaseAnonKey}`, {
+        headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` }
+      });
+      if (!res.ok) {
+        res = await fetch(`${supabaseUrl}/rest/v1/app_state_snapshots?app_id=eq.spb&select=*,created_at&order=created_at.desc&limit=20&apikey=${supabaseAnonKey}`, {
+          headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` }
+        });
+      }
+      if (res.ok) {
+        const rows = await res.json();
+        const filtered = Array.isArray(rows) ? rows.filter((r: any) => r.id === 'spb' || r.app_id === 'spb') : [];
+        setSnapshots(filtered);
+      } else {
+        setSnapshots([]);
+      }
+    } catch {
+      setSnapshots([]);
+    } finally {
+      setIsLoadingSnapshots(false);
+    }
+  };
+
+  const handleBackupToSupabase = async () => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setBackupResult({ ok: false, error: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY' });
+      return;
+    }
+    setIsBackingUp(true);
+    setBackupResult(null);
+    const payload = { config, menuItems, outlets };
+    try {
+      const nowIso = new Date().toISOString();
+      let res = await fetch(`${supabaseUrl}/rest/v1/app_state_snapshots?apikey=${supabaseAnonKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify({ id: 'spb', data: payload, created_at: nowIso })
+      });
+      if (!res.ok) {
+        res = await fetch(`${supabaseUrl}/rest/v1/app_state_snapshots?apikey=${supabaseAnonKey}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            Prefer: 'return=representation'
+          },
+          body: JSON.stringify({ app_id: 'spb', data: payload, created_at: nowIso })
+        });
+      }
+      if (res.ok) {
+        setBackupResult({ ok: true, status: res.status });
+      } else {
+        setBackupResult({ ok: false, status: res.status, error: 'Backup failed' });
+      }
+    } catch (e: any) {
+      setBackupResult({ ok: false, error: e?.message || 'Network error' });
+    } finally {
+      setIsBackingUp(false);
+      loadSnapshots();
+    }
+  };
+
+  useEffect(() => {
+    if (mainTab === 'system') {
+      loadSnapshots();
+    }
+  }, [mainTab, supabaseUrl, supabaseAnonKey]);
+
+  const handleForceRefreshAll = async () => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setForceResult({ ok: false, error: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY' });
+      return;
+    }
+    setIsForcingRefresh(true);
+    setForceResult(null);
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&apikey=${supabaseAnonKey}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          Prefer: 'return=representation'
+        },
+        body: JSON.stringify({ updated_at: new Date().toISOString() })
+      });
+      setForceResult({ ok: res.ok, status: res.status, error: res.ok ? undefined : 'Refresh update failed' });
+    } catch (e: any) {
+      setForceResult({ ok: false, error: e?.message || 'Network error' });
+    } finally {
+      setIsForcingRefresh(false);
+    }
+  };
   if (!isOpen) return null;
 
   // --- AUTHENTICATION HANDLER ---
@@ -645,10 +753,46 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
           setConfirmModal({
               title: "Import Success",
               message: `Successfully processed CSV. Updated/Added ${importedCount} items. Save changes?`,
-              action: () => {
+              action: async () => {
                   setConfig(newConfig);
                   setMenuItems(newMenuItems);
                   showAlert("Menu Import Complete!");
+                  if (supabaseUrl && supabaseAnonKey) {
+                      const res = await fetch(`${supabaseUrl}/rest/v1/app_state?on_conflict=id&apikey=${supabaseAnonKey}`, {
+                          method: 'POST',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              apikey: supabaseAnonKey,
+                              Authorization: `Bearer ${supabaseAnonKey}`,
+                              Prefer: 'resolution=merge-duplicates,return=representation'
+                          },
+                          body: JSON.stringify({
+                              id: 'spb',
+                              config: newConfig,
+                              menuitems: newMenuItems,
+                              outlets: outlets,
+                              updated_at: new Date().toISOString()
+                          })
+                      });
+                      if (!res.ok) {
+                        await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&apikey=${supabaseAnonKey}`, {
+                            method: 'PATCH',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                apikey: supabaseAnonKey,
+                                Authorization: `Bearer ${supabaseAnonKey}`,
+                                Prefer: 'return=representation'
+                            },
+                            body: JSON.stringify({
+                                config: newConfig,
+                                menuitems: newMenuItems,
+                                outlets: outlets,
+                                updated_at: new Date().toISOString()
+                            })
+                        });
+                      }
+                      await handleForceRefreshAll();
+                  }
               }
           });
       };
@@ -859,18 +1003,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                       <div className="flex justify-between"><span className="text-gray-500">Supabase URL</span><span className="font-bold">{supabaseUrl ? 'Configured' : 'Missing'}</span></div>
                       <div className="flex justify-between"><span className="text-gray-500">Supabase Key</span><span className="font-bold">{supabaseAnonKey ? 'Configured' : 'Missing'}</span></div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                       <button 
                           onClick={testSupabase} 
-                          className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-50"
+                          className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-50 w-full md:w-auto"
                           disabled={isTestingSupabase}
                       >
                           <Zap size={16}/> {isTestingSupabase ? 'Testing...' : 'Ping Supabase'}
+                      </button>
+                      <button
+                          onClick={handleForceRefreshAll}
+                          className="px-6 py-3 bg-white border-2 border-gray-200 text-brand-black rounded-lg font-bold text-sm hover:border-brand-black hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50 w-full md:w-auto"
+                          disabled={isForcingRefresh || !supabaseUrl || !supabaseAnonKey}
+                      >
+                          <RefreshCw size={16}/> {isForcingRefresh ? 'Refreshing...' : 'Force Refresh All'}
                       </button>
                       {supabaseResult && (
                           <span className={`text-xs font-bold ${supabaseResult.ok ? 'text-green-600' : 'text-red-600'}`}>
                               {supabaseResult.ok ? `OK (${supabaseResult.status})` : `Error${supabaseResult.status ? ` (${supabaseResult.status})` : ''}: ${supabaseResult.error || 'Unknown'}`}
                           </span>
+                      )}
+                      {forceResult && (
+                           <span className={`text-xs font-bold ${forceResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+                               {forceResult.ok ? `OK (${forceResult.status})` : `Error${forceResult.status ? ` (${forceResult.status})` : ''}: ${forceResult.error || 'Unknown'}`}
+                           </span>
                       )}
                   </div>
               </div>
@@ -948,10 +1104,62 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                            </button>
                        </div>
                    </div>
-              </div>
-          </div>
-      </div>
-  );
+               </div>
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4 md:col-span-2">
+                   <div className="flex items-center gap-3 mb-2">
+                       <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Database size={24}/></div>
+                       <div>
+                           <h4 className="font-bold text-lg text-brand-black">Supabase Snapshots</h4>
+                           <p className="text-xs text-gray-500">Backup to cloud and view history</p>
+                       </div>
+                   </div>
+                   <div className="flex items-center gap-2">
+                       <button 
+                         onClick={handleBackupToSupabase} 
+                         className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-50"
+                         disabled={isBackingUp || !supabaseUrl || !supabaseAnonKey}
+                       >
+                           <Upload size={16}/> {isBackingUp ? 'Backing up...' : 'Backup to Supabase'}
+                       </button>
+                       <button 
+                         onClick={loadSnapshots} 
+                         className="px-6 py-3 bg-gray-100 text-brand-black rounded-lg font-bold text-sm hover:bg-brand-yellow transition-all flex items-center gap-2"
+                       >
+                           <RefreshCw size={16}/> Refresh
+                       </button>
+                       {backupResult && (
+                         <span className={`text-xs font-bold ${backupResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+                           {backupResult.ok ? `OK (${backupResult.status})` : `Error${backupResult.status ? ` (${backupResult.status})` : ''}: ${backupResult.error || 'Unknown'}`}
+                         </span>
+                       )}
+                   </div>
+                   <div className="mt-4">
+                       {isLoadingSnapshots ? (
+                         <div className="text-sm text-gray-500">Loading snapshots...</div>
+                       ) : (
+                         <div className="space-y-2">
+                           {snapshots.length === 0 ? (
+                             <div className="text-sm text-gray-400">No snapshots found</div>
+                           ) : (
+                             snapshots.map((s, idx) => (
+                               <div key={`${s.id || s.app_id || 'spb'}-${s.created_at || idx}`} className="flex items-center justify-between p-3 border rounded-lg">
+                                 <div className="text-sm">
+                                   <div className="font-bold text-brand-black">{(s.created_at || '').replace('T',' ').substring(0,19)}</div>
+                                   {s.note && <div className="text-xs text-gray-500">{s.note}</div>}
+                                 </div>
+                               </div>
+                             ))
+                           )}
+                         </div>
+                       )}
+                   </div>
+               </div>
+           </div>
+        </div>
+    );
 
   // 4. BULK AVAILABILITY MATRIX (Modal)
   const renderAvailabilityMatrix = () => (
