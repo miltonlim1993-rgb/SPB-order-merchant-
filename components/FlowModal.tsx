@@ -43,16 +43,90 @@ const FlowModal: React.FC<FlowModalProps> = ({
   const [localSelections, setLocalSelections] = useState<MenuItemOption[]>(initialSelections);
 
   // Initialize state when step changes. 
-  // IMPORTANT: We do NOT depend on 'initialSelections' directly here to avoid infinite reset loops 
-  // when the parent re-renders due to onTempSelect updates.
   useEffect(() => {
+      // MERGED VIEW LOGIC: If we are entering the first Option Group, pull selections for ALL subsequent groups
+      if (!['Meat', 'Variation', 'Customization', 'Review'].includes(step) && !isEditingStep && flowSteps.length > 0) {
+          // Identify if this is the start of the "Merged" phase
+          const myIndex = flowSteps.indexOf(step);
+          // Only trigger if we are at a valid index
+          if(myIndex >= 0) {
+             // Find all relevant groups from history
+             const relevantGroups = flowSteps.filter(s => !['Meat', 'Variation', 'Customization', 'Review'].includes(s));
+             const mergedSelections = historySelections.filter(sel => 
+                 relevantGroups.some(gId => {
+                    const g = config.optionGroups?.find(og => og.id === gId);
+                    return g?.options.some(o => o.name === sel.name);
+                 })
+             );
+             // Merge with initial selections for THIS step (which might be partial)
+             // Actually, historySelections should have everything we need if we came back.
+             if(mergedSelections.length > 0) {
+                 setLocalSelections(mergedSelections);
+                 return;
+             }
+          }
+      }
       setLocalSelections(initialSelections);
-  }, [stepIndex, isEditingStep, item.id]);
+  }, [stepIndex, isEditingStep, item.id]); // re-run on step change
+
+  // Determine if we should show the MERGED VIEW
+  const isMergedView = !['Meat', 'Variation', 'Customization', 'Review'].includes(step) && !isEditingStep;
+  
+  // Calculate Merge Block Context
+  const getMergeBlockContext = () => {
+      if (!isMergedView) return { isLeader: false, leaderIndex: -1, blockGroups: [] };
+      
+      // Find start of block
+      let startIndex = stepIndex;
+      while (startIndex > 0) {
+          const prevStep = flowSteps[startIndex - 1];
+          if (['Meat', 'Variation', 'Customization', 'Review'].includes(prevStep)) break;
+          startIndex--;
+      }
+      
+      // Find end of block
+      let endIndex = stepIndex;
+      while (endIndex < flowSteps.length - 1) {
+          const nextStep = flowSteps[endIndex + 1];
+          if (['Meat', 'Variation', 'Customization', 'Review'].includes(nextStep)) break;
+          endIndex++;
+      }
+      
+      const isLeader = startIndex === stepIndex;
+      const blockGroupIds = flowSteps.slice(startIndex, endIndex + 1);
+      const blockGroups = blockGroupIds.map(id => config.optionGroups?.find(g => g.id === id)).filter(Boolean) as OptionGroup[];
+      
+      return { isLeader, leaderIndex: startIndex, blockGroups };
+  };
+
+  const { isLeader: isMergedLeader, leaderIndex: mergedLeaderIndex, blockGroups: mergedGroups } = getMergeBlockContext();
+
+  // Redirect Follower to Leader (for Back navigation)
+  useEffect(() => {
+      if (isMergedView && !isMergedLeader && mergedLeaderIndex >= 0 && onJumpToStep) {
+          onJumpToStep(mergedLeaderIndex);
+      }
+  }, [isMergedView, isMergedLeader, mergedLeaderIndex, onJumpToStep]);
 
   useEffect(() => {
-    // PRE-SELECTION LOGIC
-    // Only pre-select if it's a required single-choice group and nothing is selected yet
-    if (!['Meat', 'Variation', 'Addon', 'Customization', 'Review'].includes(step) && localSelections.length === 0 && initialSelections.length === 0) {
+    // PRE-SELECTION LOGIC (Updated for Merged View)
+    if (isMergedView && isMergedLeader && localSelections.length === 0 && initialSelections.length === 0) {
+         const newSelections: MenuItemOption[] = [];
+         mergedGroups.forEach(group => {
+             if(group.options.length > 0 && group.isRequired && group.maxSelection === 1) {
+                 // Check if we already have a selection for this group in localSelections
+                 const hasSel = localSelections.some(s => group.options.some(o => o.name === s.name));
+                 if(!hasSel) {
+                     newSelections.push(group.options[0]);
+                 }
+             }
+         });
+         if(newSelections.length > 0) {
+             setLocalSelections(prev => [...prev, ...newSelections]);
+         }
+    } 
+    // Legacy single step logic
+    else if (!isMergedView && localSelections.length === 0 && initialSelections.length === 0) {
         const group = config.optionGroups?.find(g => g.id === step);
         if(group && group.options.length > 0 && group.isRequired) {
              if(group.maxSelection === 1) {
@@ -60,7 +134,7 @@ const FlowModal: React.FC<FlowModalProps> = ({
              }
         }
     } 
-  }, [step, config.optionGroups, localSelections.length, initialSelections.length]);
+  }, [step, config.optionGroups, isMergedView, isMergedLeader]); // Removed localSelections dependency to avoid loop
 
   useEffect(() => {
     onTempSelect(localSelections);
@@ -68,29 +142,50 @@ const FlowModal: React.FC<FlowModalProps> = ({
 
   // Updated Selection Handler
   const handleSelect = (opt: MenuItemOption, logic: 'toggle' | 'increment' | 'decrement', maxSelection?: number) => {
+    // Find which group this option belongs to (for maxSelection logic in Merged View)
+    let effectiveMax = maxSelection;
+    if(isMergedView && !effectiveMax) {
+        const group = mergedGroups.find(g => g.options.some(o => o.name === opt.name));
+        if(group) effectiveMax = group.maxSelection;
+    }
     
     if (logic === 'toggle') {
         // Standard Binary Selection
-        if (maxSelection === 1) {
-            // Single Choice: Replace
-            setLocalSelections([opt]);
+        if (effectiveMax === 1) {
+            // Single Choice: Replace options from SAME GROUP
+            // We need to remove other options from this group first
+            setLocalSelections(prev => {
+                const group = mergedGroups.find(g => g.options.some(o => o.name === opt.name)) || config.optionGroups?.find(g => g.id === step);
+                if (!group) return [...prev, opt]; // Fallback
+
+                const others = prev.filter(s => !group.options.some(o => o.name === s.name));
+                return [...others, opt];
+            });
         } else {
             // Multi Choice: Toggle
             const exists = localSelections.some(s => s.name === opt.name);
             if (exists) {
                 setLocalSelections(prev => prev.filter(s => s.name !== opt.name));
             } else {
-                // Check Max Limit
-                if (maxSelection && maxSelection > 0 && localSelections.length >= maxSelection) {
-                    return; // Max limit reached
+                // Check Max Limit for THIS GROUP
+                if (effectiveMax && effectiveMax > 0) {
+                     const group = mergedGroups.find(g => g.options.some(o => o.name === opt.name)) || config.optionGroups?.find(g => g.id === step);
+                     if(group) {
+                         const currentCount = localSelections.filter(s => group.options.some(o => o.name === s.name)).length;
+                         if(currentCount >= effectiveMax) return;
+                     }
                 }
                 setLocalSelections(prev => [...prev, opt]);
             }
         }
     } else if (logic === 'increment') {
         // Quantity Logic: Add another instance
-        if (maxSelection && maxSelection > 0 && localSelections.length >= maxSelection) {
-            return; // Max limit reached
+        if (effectiveMax && effectiveMax > 0) {
+             const group = mergedGroups.find(g => g.options.some(o => o.name === opt.name)) || config.optionGroups?.find(g => g.id === step);
+             if(group) {
+                 const currentCount = localSelections.filter(s => group.options.some(o => o.name === s.name)).length;
+                 if(currentCount >= effectiveMax) return;
+             }
         }
         setLocalSelections(prev => [...prev, opt]);
     } else if (logic === 'decrement') {
@@ -379,152 +474,156 @@ const FlowModal: React.FC<FlowModalProps> = ({
         );
     }
 
-    // 4. Standard Option Groups (Dynamic by ID)
-    let optionsToRender: MenuItemOption[] = [];
-    let isSingleSelect = false;
-    let allowQty = false;
-    let maxGroupSelection: number | undefined = undefined;
-    let groupName = '';
-
+    // 4. Standard Option Groups (Dynamic by ID) & Merged Groups
+    let groupsToRender: { group: OptionGroup, options: MenuItemOption[] }[] = [];
+    
     if (step === 'Addon') {
         // Fallback addon step
-        optionsToRender = [
+        const addonOptions = [
             ...(item.options || []), 
             ...(item.linkedOptionGroupIds?.flatMap(id => config.optionGroups?.find(g => g.id === id)?.options || []) || [])
         ].filter(o => o.type === 'addon');
-        isSingleSelect = false;
-        allowQty = false;
-        groupName = 'Add-ons';
+        groupsToRender = [{ group: { id: 'Addon', name: 'Add-ons' } as any, options: addonOptions }];
+    } else if (isMergedView) {
+       if (isMergedLeader) {
+           groupsToRender = mergedGroups.map(g => ({ group: g, options: g.options }));
+       } else {
+           // Follower: Render loading/redirect placeholder
+           return <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>;
+       }
     } else {
         const group = config.optionGroups?.find(g => g.id === step);
-        if (group) {
-            optionsToRender = group.options;
-            isSingleSelect = group.maxSelection === 1;
-            allowQty = group.allowQuantity ?? false;
-            maxGroupSelection = group.maxSelection;
-            groupName = group.name;
-        }
+        if (group) groupsToRender = [{ group, options: group.options }];
     }
 
     // Heuristic: Use Card Grid only if explicitly configured or for very simple image options
-    // Disabled 'isSingleSelect' requirement to allow consistency if desired, but for now we DISABLE it to match "Variation Style" (Hero + List)
-    // as requested for "Large Drink" consistency.
     const useCardGrid = false; // Disabled to favor "Hero + List" style
 
-    if (optionsToRender.length > 0) {
-        // Selected Item Hero Display (Dynamic Image)
-        const selectedOptionWithImage = localSelections.find(s => s.imageUrl);
-        const heroImage = selectedOptionWithImage?.imageUrl || (useCardGrid ? null : item.imageUrl); // Only show item fallback if not in grid mode (to avoid double image)
-        const heroTitle = selectedOptionWithImage?.name || (useCardGrid ? null : item.name);
-
+    if (groupsToRender.length > 0) {
         return (
-            <div className="space-y-4 pt-2">
-                {useCardGrid ? (
-                    // CARD GRID LAYOUT (For Drinks/Sizes/Combo-like steps)
-                    <div className="grid grid-cols-2 gap-3">
-                        {optionsToRender.map((opt, i) => {
-                             const isSelected = localSelections.some(s => s.name === opt.name);
-                             return (
-                                <button
-                                    key={i}
-                                    onClick={() => handleSelect(opt, 'toggle', maxGroupSelection)}
-                                    className={`
-                                        relative flex flex-col items-center text-center p-3 rounded-xl border-2 transition-all group overflow-hidden
-                                        ${isSelected 
-                                            ? 'border-brand-yellow bg-yellow-50 shadow-md scale-[1.02]' 
-                                            : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-lg'
-                                        }
-                                    `}
-                                >
-                                    <div className="w-full aspect-square bg-gray-50 rounded-lg mb-3 overflow-hidden">
-                                        {opt.imageUrl ? (
-                                            <img src={opt.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={32}/></div>
-                                        )}
-                                    </div>
-                                    <h4 className="font-bold text-sm text-brand-black leading-tight mb-1">{opt.name}</h4>
-                                    {opt.price > 0 && <span className="text-xs font-bold text-gray-500">+{formatPrice(opt.price)}</span>}
-                                    
-                                    {isSelected && <div className="absolute top-2 right-2 text-brand-yellow"><CheckCircle size={20} fill="black" /></div>}
-                                </button>
-                             )
-                        })}
-                    </div>
-                ) : (
-                    // COMPACT LIST LAYOUT (Setting Style)
-                    <div className="space-y-1">
-                        {optionsToRender.map((opt, i) => {
-                            const count = getOptionCount(opt.name);
-                            const isSelected = count > 0;
-                            
-                            return (
-                                <div 
-                                    key={i} 
-                                    onClick={() => {
-                                        if(!allowQty) handleSelect(opt, 'toggle', maxGroupSelection);
-                                    }}
-                                    className={`
-                                        w-full p-2 rounded-lg flex items-center justify-between transition-all duration-200 text-left group
-                                        ${isSelected 
-                                            ? 'bg-yellow-50/50' 
-                                            : 'bg-white hover:bg-gray-50'
-                                        }
-                                        ${!allowQty ? 'cursor-pointer' : ''}
-                                        border-b border-gray-50 last:border-0
-                                    `}
-                                >
-                                    <div className="flex items-center gap-3 flex-1">
-                                        {opt.imageUrl && (
-                                            <div className="w-10 h-10 rounded-md bg-gray-50 overflow-hidden shrink-0">
-                                                <img src={opt.imageUrl} className="w-full h-full object-cover"/>
-                                            </div>
-                                        )}
-                                        <div className="flex-1 py-0.5">
-                                            <h4 className={`font-bold text-sm leading-tight ${isSelected ? 'text-brand-black' : 'text-gray-700'}`}>{opt.name}</h4>
-                                            {opt.description && <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{opt.description}</p>}
-                                        </div>
-                                    </div>
+            <div className="space-y-8 pt-2">
+                {groupsToRender.map(({ group, options }) => {
+                    const isSingleSelect = group.maxSelection === 1;
+                    const allowQty = group.allowQuantity ?? false;
+                    const maxGroupSelection = group.maxSelection;
+                    
+                    if (options.length === 0) return null;
 
-                                    <div className="flex items-center gap-3 ml-2">
-                                        {opt.price > 0 && (
-                                            <span className="text-xs font-bold text-gray-900">+{formatPrice(opt.price)}</span>
-                                        )}
-                                        
-                                        {allowQty ? (
-                                            <div className="flex items-center gap-0 bg-white rounded-md border border-gray-200 shadow-sm h-8" onClick={e => e.stopPropagation()}>
-                                                <button 
-                                                    onClick={() => handleSelect(opt, 'decrement', maxGroupSelection)}
-                                                    className={`w-8 h-full flex items-center justify-center rounded-l-md ${count > 0 ? 'text-red-600 hover:bg-red-50' : 'text-gray-300'}`}
-                                                    disabled={count === 0}
-                                                >
-                                                    <Minus size={14} strokeWidth={3}/>
-                                                </button>
-                                                <div className="w-6 h-full flex items-center justify-center font-bold text-sm text-black border-x border-gray-100">
-                                                    {count}
-                                                </div>
-                                                <button 
-                                                    onClick={() => handleSelect(opt, 'increment', maxGroupSelection)}
-                                                    className={`w-8 h-full flex items-center justify-center rounded-r-md bg-brand-black text-white hover:bg-gray-800`}
-                                                    disabled={maxGroupSelection ? localSelections.length >= maxGroupSelection : false}
-                                                >
-                                                    <Plus size={14} strokeWidth={3}/>
-                                                </button>
+                    return (
+                        <div key={group.id || group.name}>
+                             {/* Render Header if multiple groups or explicit title needed */}
+                             {(groupsToRender.length > 1 || group.name !== 'Add-ons') && (
+                                 <h4 className="font-display font-bold text-lg mb-2 text-brand-black uppercase tracking-wide border-b border-gray-100 pb-1">{group.name}</h4>
+                             )}
+
+                             {useCardGrid ? (
+                                // CARD GRID LAYOUT
+                                <div className="grid grid-cols-2 gap-3">
+                                   {options.map((opt, i) => {
+                                      const isSelected = localSelections.some(s => s.name === opt.name);
+                                      return (
+                                        <button
+                                            key={i}
+                                            onClick={() => handleSelect(opt, 'toggle', maxGroupSelection)}
+                                            className={`
+                                                relative flex flex-col items-center text-center p-3 rounded-xl border-2 transition-all group overflow-hidden
+                                                ${isSelected 
+                                                    ? 'border-brand-yellow bg-yellow-50 shadow-md scale-[1.02]' 
+                                                    : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-lg'
+                                                }
+                                            `}
+                                        >
+                                            <div className="w-full aspect-square bg-gray-50 rounded-lg mb-3 overflow-hidden">
+                                                {opt.imageUrl ? (
+                                                    <img src={opt.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon size={32}/></div>
+                                                )}
                                             </div>
-                                        ) : (
-                                            isSelected ? (
-                                                <CheckCircle className="text-brand-yellow fill-brand-black" size={20} />
-                                            ) : (
-                                                <div className="w-5 h-5 rounded-full border border-gray-300 group-hover:border-gray-400 bg-white" />
-                                            )
-                                        )}
-                                    </div>
+                                            <h4 className="font-bold text-sm text-brand-black leading-tight mb-1">{opt.name}</h4>
+                                            {opt.price > 0 && <span className="text-xs font-bold text-gray-500">+{formatPrice(opt.price)}</span>}
+                                            
+                                            {isSelected && <div className="absolute top-2 right-2 text-brand-yellow"><CheckCircle size={20} fill="black" /></div>}
+                                        </button>
+                                      )
+                                   })}
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
-                {optionsToRender.length === 0 && <div className="text-center text-gray-400 italic py-10">No options available</div>}
+                             ) : (
+                                // COMPACT LIST LAYOUT
+                                <div className="space-y-1">
+                                    {options.map((opt, i) => {
+                                        const count = getOptionCount(opt.name);
+                                        const isSelected = count > 0;
+                                        
+                                        return (
+                                            <div 
+                                                key={i} 
+                                                onClick={() => {
+                                                    if(!allowQty) handleSelect(opt, 'toggle', maxGroupSelection);
+                                                }}
+                                                className={`
+                                                    w-full p-2 rounded-lg flex items-center justify-between transition-all duration-200 text-left group
+                                                    ${isSelected 
+                                                        ? 'bg-yellow-50/50' 
+                                                        : 'bg-white hover:bg-gray-50'
+                                                    }
+                                                    ${!allowQty ? 'cursor-pointer' : ''}
+                                                    border-b border-gray-50 last:border-0
+                                                `}
+                                            >
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    {opt.imageUrl && (
+                                                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-md bg-gray-50 overflow-hidden shrink-0">
+                                                            <img src={opt.imageUrl} className="w-full h-full object-cover"/>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 py-0.5">
+                                                        <h4 className={`font-bold text-sm leading-tight ${isSelected ? 'text-brand-black' : 'text-gray-700'}`}>{opt.name}</h4>
+                                                        {opt.description && <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{opt.description}</p>}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-3 ml-2">
+                                                    {opt.price > 0 && (
+                                                        <span className="text-xs font-bold text-gray-900">+{formatPrice(opt.price)}</span>
+                                                    )}
+                                                    
+                                                    {allowQty ? (
+                                                        <div className="flex items-center gap-0 bg-white rounded-md border border-gray-200 shadow-sm h-8" onClick={e => e.stopPropagation()}>
+                                                            <button 
+                                                                onClick={() => handleSelect(opt, 'decrement', maxGroupSelection)}
+                                                                className={`w-8 h-full flex items-center justify-center rounded-l-md ${count > 0 ? 'text-red-600 hover:bg-red-50' : 'text-gray-300'}`}
+                                                                disabled={count === 0}
+                                                            >
+                                                                <Minus size={14} strokeWidth={3}/>
+                                                            </button>
+                                                            <div className="w-6 h-full flex items-center justify-center font-bold text-sm text-black border-x border-gray-100">
+                                                                {count}
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleSelect(opt, 'increment', maxGroupSelection)}
+                                                                className={`w-8 h-full flex items-center justify-center rounded-r-md bg-brand-black text-white hover:bg-gray-800`}
+                                                                disabled={maxGroupSelection ? localSelections.length >= maxGroupSelection : false}
+                                                            >
+                                                                <Plus size={14} strokeWidth={3}/>
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        isSelected ? (
+                                                            <CheckCircle className="text-brand-yellow fill-brand-black" size={20} />
+                                                        ) : (
+                                                            <div className="w-5 h-5 rounded-full border border-gray-300 group-hover:border-gray-400 bg-white" />
+                                                        )
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                             )}
+                        </div>
+                    );
+                })}
             </div>
         );
     }
@@ -569,13 +668,13 @@ const FlowModal: React.FC<FlowModalProps> = ({
 
       {/* COMPACT ITEM CONTEXT HEADER (Sticky) */}
       {step !== 'Review' && step !== 'Variation' && step !== 'Meat' && (
-          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-2 flex items-center gap-3 shrink-0">
-             <div className="w-10 h-10 rounded-md bg-white overflow-hidden shrink-0 border border-gray-200 shadow-sm">
+          <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 flex items-center gap-4 shrink-0">
+             <div className="w-16 h-16 md:w-20 md:h-20 rounded-md bg-white overflow-hidden shrink-0 shadow-sm">
                  <img src={item.imageUrl} className="w-full h-full object-cover" />
              </div>
              <div className="flex-1 min-w-0">
-                 <h3 className="font-bold text-xs text-gray-900 truncate leading-tight uppercase tracking-wide">{item.name}</h3>
-                 <p className="text-[10px] text-gray-500 font-medium truncate mt-0.5">
+                 <h3 className="font-bold text-sm md:text-base text-gray-900 leading-tight uppercase tracking-wide break-words whitespace-normal">{item.name}</h3>
+                 <p className="text-xs text-gray-500 font-medium mt-1">
                     {step === 'Customization' ? 'Adjusting Ingredients' : 'Select options below'}
                  </p>
              </div>

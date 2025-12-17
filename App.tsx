@@ -719,8 +719,22 @@ const App: React.FC = () => {
           hasMoreSteps = true;
       }
 
-      if (hasMoreSteps) {
-          setFlowStepIndex(flowStepIndex + 1);
+      // Calculate next index (default +1)
+      let nextIndex = flowStepIndex + 1;
+      
+      // MERGED VIEW SKIP LOGIC:
+      // If current step is a standard option group (mergeable), skip subsequent mergeable groups
+      // to avoid showing "Follower" steps that are already handled by the "Leader" step.
+      const isMergeable = (s: string) => !['Meat', 'Variation', 'Customization', 'Review', 'Addon'].includes(s);
+      
+      if (isMergeable(currentStepType)) {
+           while (nextIndex < nextSteps.length && isMergeable(nextSteps[nextIndex])) {
+               nextIndex++;
+           }
+      }
+
+      if (hasMoreSteps && nextIndex < nextSteps.length) {
+          setFlowStepIndex(nextIndex);
           setTempFlowSelectedOptions([]);
       } else {
           setIsReviewStep(true);
@@ -1237,7 +1251,7 @@ const App: React.FC = () => {
       
       {/* --- VERSION INDICATOR (FOR DEBUGGING UPDATE) --- */}
       <div className="fixed bottom-0 right-0 p-1 text-[10px] text-gray-300 pointer-events-none z-[1000] opacity-50">
-        v2.5
+        v2.7
       </div>
     </div>
   );
