@@ -81,32 +81,11 @@ const App: React.FC = () => {
         
         if (d?.config?.dataVersion && d.config.dataVersion > localVersion && !isAdminOpenRef.current) {
             
-            // If localVersion is 0, it means we are just starting up or cache cleared.
-            // We should NOT reload, just set state.
-            if (localVersion === 0) {
-                 if (d?.config) setConfig(d.config);
-                 if (d?.outlets) setOutlets(d.outlets);
-                 if (d?.menuItems) setMenuItems(d.menuItems);
-                 initialSyncReadyRef.current = true;
-                 setIsInitializing(false);
-                 return;
-            }
-
-            // SAFEGUARD: Prevent rapid-fire reloads (loop protection)
-            const lastReload = parseInt(localStorage.getItem('SPB_LAST_RELOAD_TS') || '0');
-            const now = Date.now();
+            // UNPLUGGED RELOAD SYSTEM: Just apply update silently
+            if (d?.config) setConfig(d.config);
+            if (d?.outlets) setOutlets(d.outlets);
+            if (d?.menuItems) setMenuItems(d.menuItems);
             
-            if (now - lastReload < 5000) {
-                console.warn("Preventing rapid reload loop - applying update without reload");
-                // Just apply the data without reloading
-                if (d?.config) setConfig(d.config);
-                if (d?.outlets) setOutlets(d.outlets);
-                if (d?.menuItems) setMenuItems(d.menuItems);
-                initialSyncReadyRef.current = true;
-                setIsInitializing(false);
-                return;
-            }
-
             try {
                 const payload = JSON.stringify({ 
                     config: d.config || configRef.current, 
@@ -114,10 +93,10 @@ const App: React.FC = () => {
                     menuItems: d.menuItems || menuItems 
                 });
                 localStorage.setItem('SPB_APP_STATE_V2', payload);
-                localStorage.setItem('SPB_LAST_RELOAD_TS', now.toString());
             } catch {}
             
-            window.location.reload();
+            initialSyncReadyRef.current = true;
+            setIsInitializing(false);
             return;
         }
 
@@ -150,29 +129,11 @@ const App: React.FC = () => {
       // Force reload if version mismatch
       if (r?.config?.dataVersion && r.config.dataVersion > localVersion && !isAdminOpenRef.current) {
            
-           if (localVersion === 0) {
-                if (r?.config) setConfig(prev => ({ ...prev, ...r.config }));
-                if (r?.outlets) setOutlets(r.outlets);
-                if (r?.menuitems) setMenuItems(r.menuitems);
-                initialSyncReadyRef.current = true;
-                setIsInitializing(false);
-                return;
-           }
-
-           // SAFEGUARD: Prevent rapid-fire reloads
-           const lastReload = parseInt(localStorage.getItem('SPB_LAST_RELOAD_TS') || '0');
-           const now = Date.now();
+           // UNPLUGGED RELOAD SYSTEM: Just apply update silently
+           if (r?.config) setConfig(prev => ({ ...prev, ...r.config }));
+           if (r?.outlets) setOutlets(r.outlets);
+           if (r?.menuitems) setMenuItems(r.menuitems);
            
-           if (now - lastReload < 5000) {
-                console.warn("Preventing rapid reload loop (legacy path) - applying update without reload");
-                if (r?.config) setConfig(prev => ({ ...prev, ...r.config }));
-                if (r?.outlets) setOutlets(r.outlets);
-                if (r?.menuitems) setMenuItems(r.menuitems);
-                initialSyncReadyRef.current = true;
-                setIsInitializing(false);
-                return;
-           }
-
            try {
                 const payload = JSON.stringify({ 
                     config: r.config || configRef.current, 
@@ -180,9 +141,10 @@ const App: React.FC = () => {
                     menuItems: r.menuitems || menuItems 
                 });
                 localStorage.setItem('SPB_APP_STATE_V2', payload);
-                localStorage.setItem('SPB_LAST_RELOAD_TS', now.toString());
            } catch {}
-           window.location.reload();
+           
+           initialSyncReadyRef.current = true;
+           setIsInitializing(false);
            return;
       }
       

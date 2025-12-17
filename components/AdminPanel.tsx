@@ -1059,11 +1059,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                           <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><RefreshCw size={24}/></div>
                           <div>
                               <h4 className="font-bold text-lg text-brand-black">Live Updates</h4>
-                              <p className="text-xs text-gray-500">Force all active devices to reload</p>
+                              <p className="text-xs text-gray-500">Push changes to active devices</p>
                           </div>
                       </div>
                       <p className="text-sm text-gray-600 leading-relaxed mt-4">
-                          Push a mandatory update to all customers currently viewing the menu. This ensures everyone sees the latest prices and items immediately.
+                          Push a mandatory update to all customers currently viewing the menu. This ensures everyone sees the latest prices and items.
                       </p>
                   </div>
                   
@@ -1076,7 +1076,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                           onClick={() => {
                               const newVersion = (config.dataVersion || 1) + 1;
                               setConfig({ ...config, dataVersion: newVersion });
-                              showAlert(`Update pushed! All clients will reload to version ${newVersion}.`);
+                              showAlert(`Update pushed! Clients will receive version ${newVersion}.`);
                           }}
                           className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl translate-y-0 hover:-translate-y-1"
                       >
