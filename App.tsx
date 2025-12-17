@@ -82,9 +82,16 @@ const App: React.FC = () => {
 
       const rows2 = await res2.json();
       const r = Array.isArray(rows2) ? rows2[0] : null;
-      if (r?.config) setConfig(r.config);
+      if (r?.config) setConfig(prev => ({ ...prev, ...r.config })); // Merge to keep new defaults
       if (r?.outlets) setOutlets(r.outlets);
       if (r?.menuitems) setMenuItems(r.menuitems);
+      
+      // Force reload if version mismatch
+      if (r?.config?.dataVersion && config.dataVersion && r.config.dataVersion > config.dataVersion && !isAdminOpen) {
+           window.location.reload();
+           return;
+      }
+      
       initialSyncReadyRef.current = true;
       setIsInitializing(false);
     } catch (e) {
@@ -143,7 +150,7 @@ const App: React.FC = () => {
       const raw = localStorage.getItem('SPB_APP_STATE_V2');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed?.config) setConfig(parsed.config);
+        if (parsed?.config) setConfig(prev => ({ ...prev, ...parsed.config })); // Merge local too
         if (parsed?.outlets) setOutlets(parsed.outlets);
         if (parsed?.menuItems) setMenuItems(parsed.menuItems);
         setIsInitializing(false); // Found local data, show it immediately
@@ -1192,6 +1199,11 @@ const App: React.FC = () => {
         setOutlets={setOutlets}
         onPreviewAd={handlePreviewAd}
       />
+      
+      {/* --- VERSION INDICATOR (FOR DEBUGGING UPDATE) --- */}
+      <div className="fixed bottom-0 right-0 p-1 text-[10px] text-gray-300 pointer-events-none z-[1000] opacity-50">
+        v2.2
+      </div>
     </div>
   );
 };
