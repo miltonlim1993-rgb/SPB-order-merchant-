@@ -20,6 +20,8 @@ const App: React.FC = () => {
   const supabaseClientRef = useRef<any>(null);
   const initialSyncReadyRef = useRef<boolean>(false);
   const [isSyncingOverlay, setIsSyncingOverlay] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // NEW: To block "original" data flash
+
   const triggerForceRefresh = async () => {
     if (!supabaseUrl || !supabaseAnonKey) return;
     try {
@@ -35,8 +37,12 @@ const App: React.FC = () => {
       });
     } catch {}
   };
-  const loadCloudState = async () => {
-    if (!supabaseUrl || !supabaseAnonKey) return;
+
+  const loadCloudState = async (retryCount = 0) => {
+    if (!supabaseUrl || !supabaseAnonKey) {
+       setIsInitializing(false);
+       return;
+    }
     try {
       const res = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=data,updated_at&apikey=${supabaseAnonKey}`, {
         headers: {
@@ -51,22 +57,36 @@ const App: React.FC = () => {
         if (d?.outlets) setOutlets(d.outlets);
         if (d?.menuItems) setMenuItems(d.menuItems);
         initialSyncReadyRef.current = true;
+        setIsInitializing(false);
         return;
       }
+      
+      // Fallback to older schema
       const res2 = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=config,menuitems,outlets,updated_at&apikey=${supabaseAnonKey}`, {
         headers: {
           apikey: supabaseAnonKey,
           Authorization: `Bearer ${supabaseAnonKey}`
         }
       });
-      if (!res2.ok) return;
+      
+      if (!res2.ok) {
+         throw new Error('Fetch failed');
+      }
+
       const rows2 = await res2.json();
       const r = Array.isArray(rows2) ? rows2[0] : null;
       if (r?.config) setConfig(r.config);
       if (r?.outlets) setOutlets(r.outlets);
       if (r?.menuitems) setMenuItems(r.menuitems);
       initialSyncReadyRef.current = true;
-    } catch {}
+      setIsInitializing(false);
+    } catch (e) {
+      if (retryCount < 3) {
+         setTimeout(() => loadCloudState(retryCount + 1), 1000 * (retryCount + 1)); // Exponential backoff
+      } else {
+         setIsInitializing(false); // Give up and show what we have
+      }
+    }
   };
   const queueCloudSave = (payload: any) => {
     if (!supabaseUrl || !supabaseAnonKey) return;
@@ -119,6 +139,7 @@ const App: React.FC = () => {
         if (parsed?.config) setConfig(parsed.config);
         if (parsed?.outlets) setOutlets(parsed.outlets);
         if (parsed?.menuItems) setMenuItems(parsed.menuItems);
+        setIsInitializing(false); // Found local data, show it immediately
       }
     } catch {}
   }, []);
@@ -807,6 +828,18 @@ const App: React.FC = () => {
   
   // --- RENDERING ---
   
+  // 0. Initial Loading Screen
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center p-4">
+        <div className="animate-spin text-brand-yellow mb-4">
+            <RefreshCw size={48} />
+        </div>
+        <p className="text-white font-bold text-lg animate-pulse">Loading...</p>
+      </div>
+    );
+  }
+
   // 1. Landing / Outlet Selector
   if (!selectedOutletId && !isAdminOpen) {
     return (
