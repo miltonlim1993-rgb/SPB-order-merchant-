@@ -40,55 +40,30 @@ const FlowModal: React.FC<FlowModalProps> = ({
   flowSteps = [], historySelections = [], existingSelections = [], initialSelections = [], onJumpToStep, isEditingStep
 }) => {
   
-  const [localSelections, setLocalSelections] = useState<MenuItemOption[]>(initialSelections);
-
-  // Initialize state when step changes. 
-  useEffect(() => {
-      // MERGED VIEW LOGIC: If we are entering the first Option Group, pull selections for ALL subsequent groups
-      if (!['Meat', 'Variation', 'Customization', 'Review'].includes(step) && !isEditingStep && flowSteps.length > 0) {
-          // Identify if this is the start of the "Merged" phase
-          const myIndex = flowSteps.indexOf(step);
-          // Only trigger if we are at a valid index
-          if(myIndex >= 0) {
-             // Find all relevant groups from history
-             const relevantGroups = flowSteps.filter(s => !['Meat', 'Variation', 'Customization', 'Review'].includes(s));
-             const mergedSelections = historySelections.filter(sel => 
-                 relevantGroups.some(gId => {
-                    const g = config.optionGroups?.find(og => og.id === gId);
-                    return g?.options.some(o => o.name === sel.name);
-                 })
-             );
-             // Merge with initial selections for THIS step (which might be partial)
-             // Actually, historySelections should have everything we need if we came back.
-             if(mergedSelections.length > 0) {
-                 setLocalSelections(mergedSelections);
-                 return;
-             }
-          }
-      }
-      setLocalSelections(initialSelections);
-  }, [stepIndex, isEditingStep, item.id]); // re-run on step change
-
   // Determine if we should show the MERGED VIEW
-  const isMergedView = !['Meat', 'Variation', 'Customization', 'Review'].includes(step) && !isEditingStep;
+  const currentGroup = config.optionGroups?.find(g => g.id === step);
+  const currentMergeTag = currentGroup?.mergeTag;
+  const isMergedView = !!currentMergeTag && !['Meat', 'Variation', 'Customization', 'Review'].includes(step) && !isEditingStep;
   
   // Calculate Merge Block Context
   const getMergeBlockContext = () => {
-      if (!isMergedView) return { isLeader: false, leaderIndex: -1, blockGroups: [] };
+      if (!isMergedView || !currentMergeTag) return { isLeader: false, leaderIndex: -1, blockGroups: [] };
       
-      // Find start of block
+      // Find start of block with SAME tag
       let startIndex = stepIndex;
       while (startIndex > 0) {
-          const prevStep = flowSteps[startIndex - 1];
-          if (['Meat', 'Variation', 'Customization', 'Review'].includes(prevStep)) break;
+          const prevStepId = flowSteps[startIndex - 1];
+          const prevGroup = config.optionGroups?.find(g => g.id === prevStepId);
+          if (prevGroup?.mergeTag !== currentMergeTag) break;
           startIndex--;
       }
       
-      // Find end of block
+      // Find end of block with SAME tag
       let endIndex = stepIndex;
       while (endIndex < flowSteps.length - 1) {
-          const nextStep = flowSteps[endIndex + 1];
-          if (['Meat', 'Variation', 'Customization', 'Review'].includes(nextStep)) break;
+          const nextStepId = flowSteps[endIndex + 1];
+          const nextGroup = config.optionGroups?.find(g => g.id === nextStepId);
+          if (nextGroup?.mergeTag !== currentMergeTag) break;
           endIndex++;
       }
       
@@ -100,6 +75,30 @@ const FlowModal: React.FC<FlowModalProps> = ({
   };
 
   const { isLeader: isMergedLeader, leaderIndex: mergedLeaderIndex, blockGroups: mergedGroups } = getMergeBlockContext();
+
+  const [localSelections, setLocalSelections] = useState<MenuItemOption[]>(initialSelections);
+
+  // Initialize state when step changes. 
+  useEffect(() => {
+      // MERGED VIEW LOGIC: If we are entering the LEADER of a merge block
+      if (isMergedView && isMergedLeader && mergedGroups.length > 0) {
+             // Find all relevant groups from history
+             const relevantGroupIds = mergedGroups.map(g => g.id);
+             const mergedSelections = historySelections.filter(sel => 
+                 relevantGroupIds.some(gId => {
+                    const g = config.optionGroups?.find(og => og.id === gId);
+                    return g?.options.some(o => o.name === sel.name);
+                 })
+             );
+             
+             if(mergedSelections.length > 0) {
+                 setLocalSelections(mergedSelections);
+                 return;
+             }
+      }
+      
+      setLocalSelections(initialSelections);
+  }, [stepIndex, isEditingStep, item.id, isMergedView, isMergedLeader]); // re-run on step change
 
   // Redirect Follower to Leader (for Back navigation)
   useEffect(() => {
@@ -513,7 +512,7 @@ const FlowModal: React.FC<FlowModalProps> = ({
                         <div key={group.id || group.name}>
                              {/* Render Header if multiple groups or explicit title needed */}
                              {(groupsToRender.length > 1 || group.name !== 'Add-ons') && (
-                                 <h4 className="font-display font-bold text-lg mb-2 text-brand-black uppercase tracking-wide border-b border-gray-100 pb-1">{group.name}</h4>
+                                 <h4 className="font-display font-bold text-base mb-2 text-brand-black uppercase tracking-wide border-b border-gray-100 pb-1">{group.name}</h4>
                              )}
 
                              {useCardGrid ? (
@@ -562,7 +561,7 @@ const FlowModal: React.FC<FlowModalProps> = ({
                                                     if(!allowQty) handleSelect(opt, 'toggle', maxGroupSelection);
                                                 }}
                                                 className={`
-                                                    w-full p-2 rounded-lg flex items-center justify-between transition-all duration-200 text-left group
+                                                    w-full p-1.5 rounded-lg flex items-center justify-between transition-all duration-200 text-left group
                                                     ${isSelected 
                                                         ? 'bg-yellow-50/50' 
                                                         : 'bg-white hover:bg-gray-50'
@@ -573,19 +572,19 @@ const FlowModal: React.FC<FlowModalProps> = ({
                                             >
                                                 <div className="flex items-center gap-3 flex-1">
                                                     {opt.imageUrl && (
-                                                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-md bg-gray-50 overflow-hidden shrink-0">
+                                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-md overflow-hidden shrink-0">
                                                             <img src={opt.imageUrl} className="w-full h-full object-cover"/>
                                                         </div>
                                                     )}
                                                     <div className="flex-1 py-0.5">
-                                                        <h4 className={`font-bold text-sm leading-tight ${isSelected ? 'text-brand-black' : 'text-gray-700'}`}>{opt.name}</h4>
+                                                        <h4 className={`font-bold text-xs md:text-sm leading-tight ${isSelected ? 'text-brand-black' : 'text-gray-700'}`}>{opt.name}</h4>
                                                         {opt.description && <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{opt.description}</p>}
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center gap-3 ml-2">
                                                     {opt.price > 0 && (
-                                                        <span className="text-xs font-bold text-gray-900">+{formatPrice(opt.price)}</span>
+                                                        <span className="text-[10px] md:text-xs font-bold text-gray-900">+{formatPrice(opt.price)}</span>
                                                     )}
                                                     
                                                     {allowQty ? (
@@ -610,9 +609,9 @@ const FlowModal: React.FC<FlowModalProps> = ({
                                                         </div>
                                                     ) : (
                                                         isSelected ? (
-                                                            <CheckCircle className="text-brand-yellow fill-brand-black" size={20} />
+                                                            <CheckCircle className="text-brand-yellow fill-brand-black" size={18} />
                                                         ) : (
-                                                            <div className="w-5 h-5 rounded-full border border-gray-300 group-hover:border-gray-400 bg-white" />
+                                                            <div className="w-4 h-4 rounded-full border border-gray-300 group-hover:border-gray-400 bg-white" />
                                                         )
                                                     )}
                                                 </div>
@@ -647,21 +646,24 @@ const FlowModal: React.FC<FlowModalProps> = ({
   return (
     <div className="fixed inset-0 z-[100] bg-gray-50 flex flex-col animate-in slide-in-from-bottom-5">
       <div className="bg-white px-4 py-3 shadow-sm flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-2">
-          {!isSubEditor && step !== 'Review' && !isEditingStep && <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 text-gray-600"><ArrowLeft size={24} /></button>}
-          {(step === 'Review' || isEditingStep) && <span className="p-2 -ml-2 text-brand-black"><ShoppingBag size={24}/></span>}
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="font-bold text-brand-black uppercase text-sm tracking-wide">
-            {getCurrentStepName()}
-          </span>
-          {!isSubEditor && totalSteps > 0 && step !== 'Customization' && step !== 'Review' && !isEditingStep && (
-            <div className="flex gap-1 mt-1">
-              {Array.from({ length: totalSteps }).map((_, i) => (
-                <div key={i} className={`h-1 rounded-full transition-all ${i <= stepIndex ? 'w-4 bg-brand-yellow' : 'w-2 bg-gray-200'}`} />
-              ))}
-            </div>
-          )}
+        <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center">
+            {!isSubEditor && step !== 'Review' && !isEditingStep && <button onClick={onBack} className="p-2 -ml-2 rounded-full hover:bg-gray-100 text-gray-600"><ArrowLeft size={24} /></button>}
+            {(step === 'Review' || isEditingStep) && <span className="p-2 -ml-2 text-brand-black"><ShoppingBag size={24}/></span>}
+          </div>
+          
+          <div className="flex flex-col items-start">
+            <span className="font-bold text-brand-black uppercase text-sm tracking-wide leading-tight">
+              {getCurrentStepName()}
+            </span>
+            {!isSubEditor && totalSteps > 0 && step !== 'Customization' && step !== 'Review' && !isEditingStep && (
+              <div className="flex gap-1 mt-0.5">
+                {Array.from({ length: totalSteps }).map((_, i) => (
+                  <div key={i} className={`h-1 rounded-full transition-all ${i <= stepIndex ? 'w-4 bg-brand-yellow' : 'w-2 bg-gray-200'}`} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 text-gray-600"><X size={24} /></button>
       </div>
@@ -669,7 +671,7 @@ const FlowModal: React.FC<FlowModalProps> = ({
       {/* COMPACT ITEM CONTEXT HEADER (Sticky) */}
       {step !== 'Review' && step !== 'Variation' && step !== 'Meat' && (
           <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 flex items-center gap-4 shrink-0">
-             <div className="w-16 h-16 md:w-20 md:h-20 rounded-md bg-white overflow-hidden shrink-0 shadow-sm">
+             <div className="w-20 h-20 md:w-24 md:h-24 rounded-md bg-white overflow-hidden shrink-0">
                  <img src={item.imageUrl} className="w-full h-full object-cover" />
              </div>
              <div className="flex-1 min-w-0">

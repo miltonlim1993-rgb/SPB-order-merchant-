@@ -1570,6 +1570,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                                 onChange={e => setEditingGroup({...editingGroup, name: e.target.value})} 
                               />
                           </div>
+                          <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1">Merge Tag (Optional)</label>
+                              <input 
+                                className="w-full border border-gray-300 rounded-lg p-3 focus:border-green-500 outline-none text-sm bg-white text-black shadow-sm" 
+                                placeholder="e.g. MyMergeGroup" 
+                                value={editingGroup.mergeTag || ''} 
+                                onChange={e => setEditingGroup({...editingGroup, mergeTag: e.target.value})} 
+                              />
+                              <div className="text-[10px] text-gray-400 mt-1">Option groups with the same tag will be merged into a single view</div>
+                          </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">

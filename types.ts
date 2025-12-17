@@ -20,6 +20,7 @@ export interface OptionGroup {
   displayMode?: 'both' | 'combo' | 'alaCarte'; 
   isCustomization?: boolean; // New: If true, this group appears in the "Customize" modal, not the main flow steps.
   allowQuantity?: boolean; // New: If true, user can select multiple of the same option (up to maxSelection)
+  mergeTag?: string; // New: Tag to group multiple option groups into a single view
 }
 
 export interface MenuItem {

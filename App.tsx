@@ -723,13 +723,21 @@ const App: React.FC = () => {
       let nextIndex = flowStepIndex + 1;
       
       // MERGED VIEW SKIP LOGIC:
-      // If current step is a standard option group (mergeable), skip subsequent mergeable groups
-      // to avoid showing "Follower" steps that are already handled by the "Leader" step.
-      const isMergeable = (s: string) => !['Meat', 'Variation', 'Customization', 'Review', 'Addon'].includes(s);
+      // Only skip subsequent steps if they share the SAME mergeTag as the current step
+      const currentGroup = config.optionGroups?.find(g => g.id === currentStepType);
+      const currentMergeTag = currentGroup?.mergeTag;
       
-      if (isMergeable(currentStepType)) {
-           while (nextIndex < nextSteps.length && isMergeable(nextSteps[nextIndex])) {
-               nextIndex++;
+      if (currentMergeTag) {
+           while (nextIndex < nextSteps.length) {
+               const nextStepId = nextSteps[nextIndex];
+               const nextGroup = config.optionGroups?.find(g => g.id === nextStepId);
+               
+               // Check if next group exists and has the SAME merge tag
+               if (nextGroup?.mergeTag === currentMergeTag) {
+                   nextIndex++;
+               } else {
+                   break;
+               }
            }
       }
 
