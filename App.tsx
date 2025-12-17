@@ -12,6 +12,23 @@ const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [outlets, setOutlets] = useState<Outlet[]>(DEFAULT_OUTLETS);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(MENU_ITEMS);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('SPB_APP_STATE_V2');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.config) setConfig(parsed.config);
+        if (parsed?.outlets) setOutlets(parsed.outlets);
+        if (parsed?.menuItems) setMenuItems(parsed.menuItems);
+      }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      const payload = JSON.stringify({ config, outlets, menuItems });
+      localStorage.setItem('SPB_APP_STATE_V2', payload);
+    } catch {}
+  }, [config, outlets, menuItems]);
   
   // --- USER SESSION STATE ---
   const [selectedOutletId, setSelectedOutletId] = useState<string | null>(null);
