@@ -50,6 +50,38 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
   // File Input Refs
   const fileInputRef = useRef<HTMLInputElement>(null); // For JSON Backup
   const fileInputCSVRef = useRef<HTMLInputElement>(null); // For CSV Import
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [supabaseResult, setSupabaseResult] = useState<{ ok: boolean; status?: number; error?: string } | null>(null);
+  const supabaseEnv = (import.meta as any).env || {};
+  const supabaseUrl = supabaseEnv.VITE_SUPABASE_URL as string | undefined;
+  const supabaseAnonKey = supabaseEnv.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const isVercel = typeof window !== 'undefined' && (window.location.hostname.endsWith('.vercel.app') || window.location.hostname.endsWith('.vercel.dev'));
+
+  const testSupabase = async () => {
+    setIsTestingSupabase(true);
+    setSupabaseResult(null);
+    try {
+      if (!supabaseUrl || !supabaseAnonKey) {
+        setSupabaseResult({ ok: false, error: 'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY' });
+      } else {
+        const res = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+          },
+        });
+        if (!res.ok) {
+          setSupabaseResult({ ok: false, status: res.status, error: 'API responded with non-OK' });
+        } else {
+          setSupabaseResult({ ok: true, status: res.status });
+        }
+      }
+    } catch (e: any) {
+      setSupabaseResult({ ok: false, error: e?.message || 'Network error' });
+    } finally {
+      setIsTestingSupabase(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -809,6 +841,38 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
               </div>
               <div className="bg-white/10 p-3 rounded-full">
                   <Database size={32} />
+              </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-3 mb-2">
+                      <div className="bg-purple-100 p-2 rounded-lg text-purple-700"><Info size={24}/></div>
+                      <div>
+                          <h4 className="font-bold text-lg text-brand-black">Connectivity Diagnostics</h4>
+                          <p className="text-xs text-gray-500">Check deployment and Supabase connectivity</p>
+                      </div>
+                  </div>
+                  <div className="space-y-2 text-sm text-brand-black">
+                      <div className="flex justify-between"><span className="text-gray-500">Domain</span><span className="font-bold">{typeof window !== 'undefined' ? window.location.hostname : 'N/A'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Vercel Detected</span><span className={`font-bold ${isVercel ? 'text-green-600' : 'text-gray-600'}`}>{isVercel ? 'Yes' : 'No'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Supabase URL</span><span className="font-bold">{supabaseUrl ? 'Configured' : 'Missing'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Supabase Key</span><span className="font-bold">{supabaseAnonKey ? 'Configured' : 'Missing'}</span></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                      <button 
+                          onClick={testSupabase} 
+                          className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-50"
+                          disabled={isTestingSupabase}
+                      >
+                          <Zap size={16}/> {isTestingSupabase ? 'Testing...' : 'Ping Supabase'}
+                      </button>
+                      {supabaseResult && (
+                          <span className={`text-xs font-bold ${supabaseResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+                              {supabaseResult.ok ? `OK (${supabaseResult.status})` : `Error${supabaseResult.status ? ` (${supabaseResult.status})` : ''}: ${supabaseResult.error || 'Unknown'}`}
+                          </span>
+                      )}
+                  </div>
               </div>
           </div>
 
