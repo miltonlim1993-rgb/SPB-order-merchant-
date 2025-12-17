@@ -50,6 +50,19 @@ const App: React.FC = () => {
        setIsInitializing(false);
        return;
     }
+    
+    // 1. READ LOCAL VERSION DIRECTLY (Bypass React State)
+    let localVersion = 0;
+    try {
+        const raw = localStorage.getItem('SPB_APP_STATE_V2');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.config?.dataVersion) {
+                localVersion = parsed.config.dataVersion;
+            }
+        }
+    } catch {}
+
     try {
       const res = await fetch(`${supabaseUrl}/rest/v1/app_state?id=eq.spb&select=data,updated_at&apikey=${supabaseAnonKey}`, {
         headers: {
@@ -61,18 +74,6 @@ const App: React.FC = () => {
         const rows = await res.json();
         const d = Array.isArray(rows) && rows[0]?.data ? rows[0].data : null;
         
-        // 1. READ LOCAL VERSION DIRECTLY (Bypass React State)
-        let localVersion = 0;
-        try {
-            const raw = localStorage.getItem('SPB_APP_STATE_V2');
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                if (parsed?.config?.dataVersion) {
-                    localVersion = parsed.config.dataVersion;
-                }
-            }
-        } catch {}
-
         // 2. CHECK VERSION
         // If local is 0 (fresh load) -> Just Update
         // If cloud > local -> Reload (unless loop protected)
@@ -147,8 +148,17 @@ const App: React.FC = () => {
       if (r?.menuitems) setMenuItems(r.menuitems);
       
       // Force reload if version mismatch
-      if (r?.config?.dataVersion && r.config.dataVersion > configRef.current.dataVersion && !isAdminOpenRef.current) {
-          // ... legacy path logic can stay as is or be updated similarly if critical ...
+      if (r?.config?.dataVersion && r.config.dataVersion > localVersion && !isAdminOpenRef.current) {
+           
+           if (localVersion === 0) {
+                if (r?.config) setConfig(prev => ({ ...prev, ...r.config }));
+                if (r?.outlets) setOutlets(r.outlets);
+                if (r?.menuitems) setMenuItems(r.menuitems);
+                initialSyncReadyRef.current = true;
+                setIsInitializing(false);
+                return;
+           }
+
            // SAFEGUARD: Prevent rapid-fire reloads
            const lastReload = parseInt(localStorage.getItem('SPB_LAST_RELOAD_TS') || '0');
            const now = Date.now();
