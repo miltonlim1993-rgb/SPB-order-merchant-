@@ -53,6 +53,13 @@ const App: React.FC = () => {
       if (res.ok) {
         const rows = await res.json();
         const d = Array.isArray(rows) && rows[0]?.data ? rows[0].data : null;
+        
+        // Forced Refresh Check
+        if (d?.config?.dataVersion && config.dataVersion && d.config.dataVersion > config.dataVersion && !isAdminOpen) {
+            window.location.reload();
+            return;
+        }
+
         if (d?.config) setConfig(d.config);
         if (d?.outlets) setOutlets(d.outlets);
         if (d?.menuItems) setMenuItems(d.menuItems);
@@ -898,13 +905,15 @@ const App: React.FC = () => {
                 ) : (
                     <div className="w-full h-full bg-gray-800 flex items-center justify-center text-white font-bold">No Hero Image</div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end pb-8">
-                     <div className="max-w-7xl mx-auto w-full px-4 text-center md:text-left">
-                        <h2 className="font-display font-bold text-4xl md:text-6xl text-white uppercase leading-none drop-shadow-lg">{config.heroTitle}</h2>
-                        <p className="text-lg md:text-xl text-brand-yellow font-display font-bold uppercase tracking-widest drop-shadow-md mt-2">{config.heroSubtitle}</p>
-                        {config.aboutText && <p className="text-sm text-gray-300 mt-2 line-clamp-2 max-w-xl hidden md:block">{config.aboutText}</p>}
-                     </div>
-                </div>
+                {(config.showHeroText ?? true) && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end pb-8">
+                         <div className="max-w-7xl mx-auto w-full px-4 text-center md:text-left">
+                            <h2 className="font-display font-bold text-4xl md:text-6xl text-white uppercase leading-none drop-shadow-lg">{config.heroTitle}</h2>
+                            <p className="text-lg md:text-xl text-brand-yellow font-display font-bold uppercase tracking-widest drop-shadow-md mt-2">{config.heroSubtitle}</p>
+                            {config.aboutText && <p className="text-sm text-gray-300 mt-2 line-clamp-2 max-w-xl hidden md:block">{config.aboutText}</p>}
+                         </div>
+                    </div>
+                )}
             </div>
         )}
 

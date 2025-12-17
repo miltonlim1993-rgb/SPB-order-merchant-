@@ -50,6 +50,9 @@ Payment Method: Transfer / Cash`,
   
   viewMode: 'scroll',
   enableLandingGatekeeper: false, 
+  enableCutleryOption: false,
+  showHeroText: true,
+  dataVersion: 1,
   
   flowGroups: [],
   

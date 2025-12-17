@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, X, Plus, ChevronUp, ChevronDown, Edit2, Trash2, ArrowLeft, Check, Copy, GripVertical, Image as ImageIcon, MapPin, Layers, ArrowUp, ArrowDown, Save, Globe, Clock, Beef, LayoutList, Link, Calendar, Eye, ExternalLink, Zap, Lock, Database, Download, Upload, FileText, FileJson, AlertTriangle, Info, Grid, RefreshCw } from 'lucide-react';
+import { Settings, X, Plus, ChevronUp, ChevronDown, Edit2, Trash2, ArrowLeft, Check, Copy, GripVertical, Image as ImageIcon, MapPin, Layers, ArrowUp, ArrowDown, Save, Globe, Clock, Beef, LayoutList, Link, Calendar, Eye, ExternalLink, Zap, Lock, Database, Download, Upload, FileText, FileJson, AlertTriangle, Info, Grid, RefreshCw, UtensilsCrossed } from 'lucide-react';
 import { AppConfig, MenuItem, Outlet, OptionGroup, MenuItemOption, Category, AdPoster } from '../types';
 
 interface AdminPanelProps {
@@ -22,7 +22,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
 
   // Main Navigation
   const [mainTab, setMainTab] = useState<'items' | 'optionGroups' | 'settings' | 'system'>('items');
-  const [settingsTab, setSettingsTab] = useState<'branding' | 'outlets' | 'ads'>('branding');
+  const [settingsTab, setSettingsTab] = useState<'branding' | 'outlets' | 'ads' | 'advanced'>('branding');
   
   // State for Accordions in Items View
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(config.categories.map(c => c.name)));
@@ -989,45 +989,81 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                  <div className="flex items-center gap-3 mb-2">
-                      <div className="bg-purple-100 p-2 rounded-lg text-purple-700"><Info size={24}/></div>
-                      <div>
-                          <h4 className="font-bold text-lg text-brand-black">Connectivity Diagnostics</h4>
-                          <p className="text-xs text-gray-500">Check deployment and Supabase connectivity</p>
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4 h-full flex flex-col justify-between">
+                  <div>
+                      <div className="flex items-center gap-3 mb-2">
+                          <div className="bg-purple-100 p-2 rounded-lg text-purple-700"><Info size={24}/></div>
+                          <div>
+                              <h4 className="font-bold text-lg text-brand-black">Connectivity Diagnostics</h4>
+                              <p className="text-xs text-gray-500">Check deployment and Supabase connectivity</p>
+                          </div>
+                      </div>
+                      <div className="space-y-2 text-sm text-brand-black mt-4">
+                          <div className="flex justify-between"><span className="text-gray-500">Domain</span><span className="font-bold">{typeof window !== 'undefined' ? window.location.hostname : 'N/A'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Vercel Detected</span><span className={`font-bold ${isVercel ? 'text-green-600' : 'text-gray-600'}`}>{isVercel ? 'Yes' : 'No'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Supabase URL</span><span className="font-bold">{supabaseUrl ? 'Configured' : 'Missing'}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Supabase Key</span><span className="font-bold">{supabaseAnonKey ? 'Configured' : 'Missing'}</span></div>
                       </div>
                   </div>
-                  <div className="space-y-2 text-sm text-brand-black">
-                      <div className="flex justify-between"><span className="text-gray-500">Domain</span><span className="font-bold">{typeof window !== 'undefined' ? window.location.hostname : 'N/A'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Vercel Detected</span><span className={`font-bold ${isVercel ? 'text-green-600' : 'text-gray-600'}`}>{isVercel ? 'Yes' : 'No'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Supabase URL</span><span className="font-bold">{supabaseUrl ? 'Configured' : 'Missing'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Supabase Key</span><span className="font-bold">{supabaseAnonKey ? 'Configured' : 'Missing'}</span></div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  
+                  <div className="flex flex-wrap items-center gap-2 mt-4">
                       <button 
                           onClick={testSupabase} 
-                          className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-50 w-full md:w-auto"
+                          className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 disabled:opacity-50 w-full md:w-auto justify-center"
                           disabled={isTestingSupabase}
                       >
                           <Zap size={16}/> {isTestingSupabase ? 'Testing...' : 'Ping Supabase'}
                       </button>
                       <button
                           onClick={handleForceRefreshAll}
-                          className="px-6 py-3 bg-white border-2 border-gray-200 text-brand-black rounded-lg font-bold text-sm hover:border-brand-black hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50 w-full md:w-auto"
+                          className="px-6 py-3 bg-white border-2 border-gray-200 text-brand-black rounded-lg font-bold text-sm hover:border-brand-black hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50 w-full md:w-auto justify-center"
                           disabled={isForcingRefresh || !supabaseUrl || !supabaseAnonKey}
                       >
                           <RefreshCw size={16}/> {isForcingRefresh ? 'Refreshing...' : 'Force Refresh All'}
                       </button>
                       {supabaseResult && (
-                          <span className={`text-xs font-bold ${supabaseResult.ok ? 'text-green-600' : 'text-red-600'}`}>
-                              {supabaseResult.ok ? `OK (${supabaseResult.status})` : `Error${supabaseResult.status ? ` (${supabaseResult.status})` : ''}: ${supabaseResult.error || 'Unknown'}`}
+                          <span className={`text-xs font-bold w-full md:w-auto text-center ${supabaseResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+                              {supabaseResult.ok ? `OK (${supabaseResult.status})` : `Error: ${supabaseResult.error || 'Failed'}`}
                           </span>
                       )}
                       {forceResult && (
-                           <span className={`text-xs font-bold ${forceResult.ok ? 'text-green-600' : 'text-red-600'}`}>
-                               {forceResult.ok ? `OK (${forceResult.status})` : `Error${forceResult.status ? ` (${forceResult.status})` : ''}: ${forceResult.error || 'Unknown'}`}
+                           <span className={`text-xs font-bold w-full md:w-auto text-center ${forceResult.ok ? 'text-green-600' : 'text-red-600'}`}>
+                               {forceResult.ok ? `OK (${forceResult.status})` : `Error: ${forceResult.error || 'Failed'}`}
                            </span>
                       )}
+                  </div>
+              </div>
+
+              {/* SYSTEM UPDATES SECTION */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4 h-full flex flex-col justify-between">
+                  <div>
+                      <div className="flex items-center gap-3 mb-2">
+                          <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><RefreshCw size={24}/></div>
+                          <div>
+                              <h4 className="font-bold text-lg text-brand-black">Live Updates</h4>
+                              <p className="text-xs text-gray-500">Force all active devices to reload</p>
+                          </div>
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed mt-4">
+                          Push a mandatory update to all customers currently viewing the menu. This ensures everyone sees the latest prices and items immediately.
+                      </p>
+                  </div>
+                  
+                  <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-100 mt-4">
+                      <div>
+                         <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Current Version</div>
+                         <div className="font-mono font-bold text-2xl text-brand-black">{config.dataVersion || 1}</div>
+                      </div>
+                      <button 
+                          onClick={() => {
+                              const newVersion = (config.dataVersion || 1) + 1;
+                              setConfig({ ...config, dataVersion: newVersion });
+                              showAlert(`Update pushed! All clients will reload to version ${newVersion}.`);
+                          }}
+                          className="px-6 py-3 bg-brand-black text-white rounded-lg font-bold text-sm hover:bg-gray-800 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl translate-y-0 hover:-translate-y-1"
+                      >
+                          <RefreshCw size={18} /> Push Update
+                      </button>
                   </div>
               </div>
           </div>
@@ -1575,7 +1611,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                                         onClick={() => setEditingGroup({...editingGroup, displayMode: mode as any})}
                                         className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize border ${editingGroup.displayMode === mode || (!editingGroup.displayMode && mode === 'both') ? 'bg-brand-black text-white border-brand-black' : 'bg-white text-gray-600 border-gray-300'}`}
                                      >
-                                         {mode === 'alaCarte' ? 'Ala Carte' : mode}
+                                         {mode === 'both' ? 'Always Show' : (mode === 'alaCarte' ? 'Single Item Only' : 'Combo Only')}
                                      </button>
                                  ))}
                              </div>
@@ -1643,18 +1679,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                                                       <option value="preference">Preference</option>
                                                   </select>
                                                   
-                                                  <button 
-                                                      onClick={() => {
+                                                  <input 
+                                                      className="w-20 border border-gray-200 rounded px-2 py-1 text-xs bg-white text-black placeholder-gray-400"
+                                                      placeholder="Badge (e.g. Hot)"
+                                                      value={opt.tag || ''}
+                                                      onChange={(e) => {
                                                           const newOpts = [...editingGroup.options];
-                                                          newOpts[idx].isComboTrigger = !newOpts[idx].isComboTrigger;
+                                                          newOpts[idx].tag = e.target.value;
                                                           setEditingGroup({...editingGroup, options: newOpts});
                                                       }}
-                                                      className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 border transition-colors ${opt.isComboTrigger ? 'bg-brand-yellow border-brand-yellow text-brand-black' : 'bg-gray-100 border-gray-200 text-gray-400'}`}
-                                                      title="Trigger Combo Mode when selected"
-                                                  >
-                                                      <Zap size={10} className={opt.isComboTrigger ? 'fill-black' : ''}/>
-                                                      {opt.isComboTrigger ? 'Combo' : 'Std'}
-                                                  </button>
+                                                  />
                                               </div>
                                           </div>
                                           <button 
@@ -1737,7 +1771,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
               {mainTab === 'settings' && (
                   <div className="space-y-6">
                       <div className="flex gap-2 overflow-x-auto pb-2">
-                          {['branding', 'outlets', 'ads'].map(t => (
+                          {['branding', 'outlets', 'ads', 'advanced'].map(t => (
                               <button key={t} onClick={() => setSettingsTab(t as any)} className={`px-4 py-2 rounded-full border text-sm font-bold capitalize whitespace-nowrap ${settingsTab === t ? 'bg-brand-black text-white border-brand-black' : 'bg-white text-gray-600 border-gray-200'}`}>
                                   {t}
                               </button>
@@ -1782,6 +1816,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                                         value={config.heroSubtitle} 
                                         onChange={e => setConfig({...config, heroSubtitle: e.target.value})}
                                       />
+                                  </div>
+
+                                  <div>
+                                      <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded -ml-2">
+                                          <input 
+                                              type="checkbox" 
+                                              checked={config.showHeroText ?? true} 
+                                              onChange={e => setConfig({...config, showHeroText: e.target.checked})} 
+                                              className="w-5 h-5 text-brand-black rounded focus:ring-brand-black"
+                                          />
+                                          <span className="font-bold text-sm">Show Text on Hero Image</span>
+                                      </label>
+                                      <p className="text-xs text-gray-500 ml-7">Uncheck to hide title and subtitle (only show image/pattern).</p>
                                   </div>
                               </div>
 
@@ -1996,6 +2043,61 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ isOpen, onClose, config, setCon
                                       </div>
                                   ))}
                               </div>
+                          </div>
+                      )}
+
+                      {settingsTab === 'advanced' && (
+                          <div className="space-y-4">
+                             <h3 className="font-bold text-lg mb-4">Advanced Controls</h3>
+                             
+                             <div className="bg-white p-4 rounded-lg border shadow-sm">
+                                 <h4 className="font-bold mb-2 flex items-center gap-2"><UtensilsCrossed size={16}/> Customer Options</h4>
+                                 <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                                     <input 
+                                         type="checkbox" 
+                                         checked={config.enableCutleryOption ?? false} 
+                                         onChange={e => setConfig({...config, enableCutleryOption: e.target.checked})} 
+                                         className="w-5 h-5 text-brand-black rounded focus:ring-brand-black"
+                                     />
+                                     <span className="font-medium">Enable "Need Cutlery" Option</span>
+                                 </label>
+                                 <p className="text-xs text-gray-500 ml-9">Allows customers to request cutlery at checkout.</p>
+                             </div>
+
+                             <div className="bg-white p-4 rounded-lg border shadow-sm">
+                                 <h4 className="font-bold mb-2 flex items-center gap-2"><Lock size={16}/> Access Control</h4>
+                                 <label className="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
+                                     <input 
+                                         type="checkbox" 
+                                         checked={config.enableLandingGatekeeper} 
+                                         onChange={e => setConfig({...config, enableLandingGatekeeper: e.target.checked})} 
+                                         className="w-5 h-5 text-brand-black rounded focus:ring-brand-black"
+                                     />
+                                     <span className="font-medium">Enable Landing Gatekeeper</span>
+                                 </label>
+                                 <p className="text-xs text-gray-500 ml-9">Forces users to select an outlet before seeing the menu.</p>
+                             </div>
+
+                             <div className="bg-white p-4 rounded-lg border shadow-sm">
+                                 <h4 className="font-bold mb-2 flex items-center gap-2"><RefreshCw size={16}/> System Updates</h4>
+                                 <p className="text-xs text-gray-500 mb-4">Push a mandatory update to all active devices. This will reload their page.</p>
+                                 <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                                     <div>
+                                         <div className="text-xs font-bold text-gray-500">Current Version</div>
+                                         <div className="font-mono font-bold text-lg">{config.dataVersion || 1}</div>
+                                     </div>
+                                     <button 
+                                         onClick={() => {
+                                             const newVersion = (config.dataVersion || 1) + 1;
+                                             setConfig({ ...config, dataVersion: newVersion });
+                                             showAlert(`Update pushed! All clients will reload to version ${newVersion}.`);
+                                         }}
+                                         className="px-4 py-2 bg-brand-black text-white text-xs font-bold rounded-lg hover:bg-gray-800 flex items-center gap-2"
+                                     >
+                                         <RefreshCw size={14} /> Push Update
+                                     </button>
+                                 </div>
+                             </div>
                           </div>
                       )}
                   </div>

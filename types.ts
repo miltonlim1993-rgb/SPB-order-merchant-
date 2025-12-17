@@ -130,6 +130,9 @@ export interface AppConfig {
   viewMode: 'scroll' | 'kiosk'; 
   
   enableLandingGatekeeper: boolean; 
+  enableCutleryOption?: boolean; // New: Toggle cutlery selection in checkout
+  showHeroText?: boolean; // New: Toggle text overlay on hero image
+  dataVersion?: number; // New: For forced updates
   flowGroups: FlowGroup[];
   
   // New Option Groups Structure
