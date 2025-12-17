@@ -686,9 +686,9 @@ const FlowModal: React.FC<FlowModalProps> = ({
       <div className="flex-1 overflow-y-auto p-4 pb-32">
         <div className="max-w-2xl mx-auto">
           {step === 'Variation' && (
-            <div className="mb-6 text-center">
+            <div className="mb-6 text-left">
               <h2 className="font-display font-bold text-3xl uppercase text-brand-black">Select {meatFilter} Burger</h2>
-              <div className="h-1 w-12 bg-brand-yellow mx-auto rounded-full mt-2"></div>
+              <div className="h-1 w-12 bg-brand-yellow mt-2 rounded-full"></div>
             </div>
           )}
           {renderContent()}

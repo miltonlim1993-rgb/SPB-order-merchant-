@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ShoppingBag, X, ChevronRight, Share2, Lock, MapPin, Clock, Info, RefreshCw, UtensilsCrossed, Home, ChevronLeft, ArrowRight, ExternalLink } from 'lucide-react';
 import { MENU_ITEMS, DEFAULT_CONFIG, DEFAULT_OUTLETS } from './constants';
 import { MenuItem, CartItem, MenuItemOption, AppConfig, Outlet, FlowGroup, AdPoster } from './types';
-// import MenuAssistant from './components/MenuAssistant'; // DISABLED
 import AdminPanel from './components/AdminPanel';
 import FlowModal from './components/FlowModal';
 import CartDrawer from './components/CartDrawer';
@@ -13,6 +12,14 @@ const App: React.FC = () => {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [outlets, setOutlets] = useState<Outlet[]>(DEFAULT_OUTLETS);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(MENU_ITEMS);
+  
+  // Refs to avoid closure staleness in loadCloudState
+  const configRef = useRef(config);
+  const isAdminOpenRef = useRef(false);
+  
+  useEffect(() => { configRef.current = config; }, [config]);
+  // We'll update isAdminOpenRef where isAdminOpen is changed or via effect
+  
   const supabaseEnv = (import.meta as any).env || {};
   const supabaseUrl = supabaseEnv.VITE_SUPABASE_URL as string | undefined;
   const supabaseAnonKey = supabaseEnv.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -54,8 +61,36 @@ const App: React.FC = () => {
         const rows = await res.json();
         const d = Array.isArray(rows) && rows[0]?.data ? rows[0].data : null;
         
-        // Forced Refresh Check
-        if (d?.config?.dataVersion && config.dataVersion && d.config.dataVersion > config.dataVersion && !isAdminOpen) {
+        // 1. READ LOCAL VERSION DIRECTLY (Bypass React State)
+        let localVersion = 0;
+        try {
+            const raw = localStorage.getItem('SPB_APP_STATE_V2');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed?.config?.dataVersion) {
+                    localVersion = parsed.config.dataVersion;
+                }
+            }
+        } catch {}
+
+        // 2. CHECK VERSION
+        // If local is 0 (fresh load) -> Just Update
+        // If cloud > local -> Reload (unless loop protected)
+        // If cloud <= local -> Do nothing (or just sync silently)
+        
+        if (d?.config?.dataVersion && d.config.dataVersion > localVersion && !isAdminOpenRef.current) {
+            
+            // If localVersion is 0, it means we are just starting up or cache cleared.
+            // We should NOT reload, just set state.
+            if (localVersion === 0) {
+                 if (d?.config) setConfig(d.config);
+                 if (d?.outlets) setOutlets(d.outlets);
+                 if (d?.menuItems) setMenuItems(d.menuItems);
+                 initialSyncReadyRef.current = true;
+                 setIsInitializing(false);
+                 return;
+            }
+
             // SAFEGUARD: Prevent rapid-fire reloads (loop protection)
             const lastReload = parseInt(localStorage.getItem('SPB_LAST_RELOAD_TS') || '0');
             const now = Date.now();
@@ -73,7 +108,7 @@ const App: React.FC = () => {
 
             try {
                 const payload = JSON.stringify({ 
-                    config: d.config || config, 
+                    config: d.config || configRef.current, 
                     outlets: d.outlets || outlets, 
                     menuItems: d.menuItems || menuItems 
                 });
@@ -112,7 +147,8 @@ const App: React.FC = () => {
       if (r?.menuitems) setMenuItems(r.menuitems);
       
       // Force reload if version mismatch
-      if (r?.config?.dataVersion && config.dataVersion && r.config.dataVersion > config.dataVersion && !isAdminOpen) {
+      if (r?.config?.dataVersion && r.config.dataVersion > configRef.current.dataVersion && !isAdminOpenRef.current) {
+          // ... legacy path logic can stay as is or be updated similarly if critical ...
            // SAFEGUARD: Prevent rapid-fire reloads
            const lastReload = parseInt(localStorage.getItem('SPB_LAST_RELOAD_TS') || '0');
            const now = Date.now();
@@ -129,7 +165,7 @@ const App: React.FC = () => {
 
            try {
                 const payload = JSON.stringify({ 
-                    config: r.config || config, 
+                    config: r.config || configRef.current, 
                     outlets: r.outlets || outlets, 
                     menuItems: r.menuitems || menuItems 
                 });
@@ -282,6 +318,8 @@ const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  useEffect(() => { isAdminOpenRef.current = isAdminOpen; }, [isAdminOpen]);
+
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [editingCartItemUuid, setEditingCartItemUuid] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
