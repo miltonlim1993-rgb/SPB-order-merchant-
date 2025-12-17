@@ -1202,7 +1202,7 @@ const App: React.FC = () => {
       
       {/* --- VERSION INDICATOR (FOR DEBUGGING UPDATE) --- */}
       <div className="fixed bottom-0 right-0 p-1 text-[10px] text-gray-300 pointer-events-none z-[1000] opacity-50">
-        v2.2
+        v2.3
       </div>
     </div>
   );

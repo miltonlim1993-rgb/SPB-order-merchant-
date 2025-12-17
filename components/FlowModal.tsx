@@ -188,25 +188,25 @@ const FlowModal: React.FC<FlowModalProps> = ({
                             : (group.options.find(o=>o.name === 'No Thanks' || o.name === 'None')?.imageUrl);
 
                         return (
-                            <div key={stepId} className="flex items-center justify-between p-4 py-6">
-                                <div className="flex items-center gap-4">
+                            <div key={stepId} className="flex items-center justify-between p-3 py-3 border-b border-gray-100 last:border-0">
+                                <div className="flex items-center gap-3">
                                     {/* Icon / Image for Step */}
-                                    <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
+                                    <div className="w-10 h-10 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden shrink-0">
                                         {displayImage ? (
                                             <img src={displayImage} className="w-full h-full object-cover"/>
                                         ) : (
-                                            hasSelection ? <CheckCircle size={20} className="text-green-500"/> : <span className="text-[10px] text-gray-400 font-bold text-center leading-tight p-1">{group.name}</span>
+                                            hasSelection ? <CheckCircle size={16} className="text-green-500"/> : <span className="text-[9px] text-gray-400 font-bold text-center leading-tight p-0.5">{group.name}</span>
                                         )}
                                     </div>
                                     
                                     <div>
-                                        <div className="font-bold text-brand-black text-sm">{group.name}</div>
-                                        <div className="text-sm text-gray-600 font-medium mt-0.5">{displaySelection}</div>
+                                        <div className="font-bold text-brand-black text-sm leading-tight">{group.name}</div>
+                                        <div className="text-xs text-gray-600 font-medium mt-0.5">{displaySelection}</div>
                                     </div>
                                 </div>
                                 <button 
                                     onClick={() => onJumpToStep && onJumpToStep(index)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg text-xs font-bold text-brand-black hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                                    className="px-3 py-1.5 border border-gray-300 rounded-md text-[10px] font-bold text-brand-black hover:bg-gray-50 active:bg-gray-100 transition-colors uppercase tracking-wide"
                                 >
                                     Change
                                 </button>
@@ -319,7 +319,7 @@ const FlowModal: React.FC<FlowModalProps> = ({
                 {customGroups.map(group => (
                     <div key={group.id}>
                         <h4 className="font-display font-bold text-xl mb-4 text-brand-black uppercase tracking-wide border-b border-gray-100 pb-2">{group.name}</h4>
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 gap-3">
                             {group.options.map((opt, i) => {
                                 const count = getOptionCount(opt.name);
                                 const isSelected = count > 0;
@@ -332,41 +332,41 @@ const FlowModal: React.FC<FlowModalProps> = ({
                                             if(!allowQty) handleSelect(opt, 'toggle', group.maxSelection);
                                         }}
                                         className={`
-                                            flex items-center justify-between p-4 rounded-xl border-2 transition-all cursor-pointer
+                                            flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer
                                             ${isSelected 
-                                                ? 'border-brand-yellow bg-yellow-50/50 shadow-md' 
+                                                ? 'border-brand-yellow bg-yellow-50/50 shadow-sm' 
                                                 : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm'
                                             }
                                         `}
                                     >
                                         <div className="text-left flex-1 pr-4">
-                                            <div className={`font-bold text-lg leading-tight ${isSelected ? 'text-brand-black' : 'text-gray-700'}`}>{opt.name}</div>
-                                            {opt.price > 0 && <div className="text-sm font-bold text-gray-500 mt-1">+{formatPrice(opt.price)}</div>}
+                                            <div className={`font-bold text-base leading-tight ${isSelected ? 'text-brand-black' : 'text-gray-700'}`}>{opt.name}</div>
+                                            {opt.price > 0 && <div className="text-xs font-bold text-gray-500 mt-0.5">+{formatPrice(opt.price)}</div>}
                                         </div>
                                         
                                         {allowQty ? (
-                                            <div className="flex items-center gap-1 bg-white rounded-xl border border-gray-200 p-1 shadow-sm h-12" onClick={e => e.stopPropagation()}>
+                                            <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-1 shadow-sm h-10" onClick={e => e.stopPropagation()}>
                                                 <button 
                                                     onClick={() => handleSelect(opt, 'decrement', group.maxSelection)}
-                                                    className={`w-12 h-full flex items-center justify-center rounded-lg transition-colors ${count > 0 ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'text-gray-300'}`}
+                                                    className={`w-10 h-full flex items-center justify-center rounded-md transition-colors ${count > 0 ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'text-gray-300'}`}
                                                     disabled={count === 0}
                                                 >
-                                                    <Minus size={20} strokeWidth={3}/>
+                                                    <Minus size={16} strokeWidth={3}/>
                                                 </button>
-                                                <div className="w-10 h-full flex items-center justify-center font-display font-bold text-xl text-brand-black">
+                                                <div className="w-8 h-full flex items-center justify-center font-display font-bold text-lg text-brand-black">
                                                     {count}
                                                 </div>
                                                 <button 
                                                     onClick={() => handleSelect(opt, 'increment', group.maxSelection)}
-                                                    className={`w-12 h-full flex items-center justify-center rounded-lg bg-brand-black text-white hover:bg-gray-800 shadow-md`}
+                                                    className={`w-10 h-full flex items-center justify-center rounded-md bg-brand-black text-white hover:bg-gray-800 shadow-md`}
                                                     disabled={group.maxSelection ? localSelections.length >= group.maxSelection : false}
                                                 >
-                                                    <Plus size={20} strokeWidth={3}/>
+                                                    <Plus size={16} strokeWidth={3}/>
                                                 </button>
                                             </div>
                                         ) : (
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${isSelected ? 'bg-brand-yellow text-brand-black scale-110 shadow-sm' : 'border-2 border-gray-200 bg-gray-50'}`}>
-                                                {isSelected && <Check size={20} strokeWidth={4}/>}
+                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isSelected ? 'bg-brand-yellow text-brand-black scale-110 shadow-sm' : 'border-2 border-gray-200 bg-gray-50'}`}>
+                                                {isSelected && <Check size={16} strokeWidth={4}/>}
                                             </div>
                                         )}
                                     </div>
@@ -419,17 +419,6 @@ const FlowModal: React.FC<FlowModalProps> = ({
 
         return (
             <div className="space-y-4 pt-2">
-                 {/* Dynamic Hero Section for this step */}
-                 {!useCardGrid && heroImage && (
-                    <div className="mb-6 text-center animate-in fade-in zoom-in duration-300">
-                        <div className="w-32 h-32 mx-auto bg-gray-100 rounded-full shadow-lg overflow-hidden border-4 border-white mb-3">
-                            <img src={heroImage} className="w-full h-full object-cover" />
-                        </div>
-                        <h3 className="font-bold text-xl text-brand-black">{heroTitle}</h3>
-                        <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Current Selection</p>
-                    </div>
-                 )}
-
                 {useCardGrid ? (
                     // CARD GRID LAYOUT (For Drinks/Sizes/Combo-like steps)
                     <div className="grid grid-cols-2 gap-3">
@@ -476,29 +465,29 @@ const FlowModal: React.FC<FlowModalProps> = ({
                                         if(!allowQty) handleSelect(opt, 'toggle', maxGroupSelection);
                                     }}
                                     className={`
-                                        w-full p-3 rounded-2xl border-2 flex items-stretch justify-between transition-all duration-200 text-left group overflow-hidden
+                                        w-full p-3 rounded-xl border flex items-center justify-between transition-all duration-200 text-left group overflow-hidden
                                         ${isSelected 
-                                            ? 'border-brand-yellow bg-yellow-50/50 shadow-md' 
-                                            : 'border-transparent bg-white shadow-sm hover:border-gray-200'
+                                            ? 'border-brand-yellow bg-yellow-50/50 shadow-sm' 
+                                            : 'border-gray-100 bg-white hover:border-gray-200'
                                         }
                                         ${!allowQty ? 'cursor-pointer' : ''}
                                     `}
                                 >
-                                    <div className="flex items-center gap-5 flex-1">
+                                    <div className="flex items-center gap-4 flex-1">
                                         {opt.imageUrl ? (
-                                            <div className="w-32 h-32 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-100 relative shadow-inner">
+                                            <div className="w-20 h-20 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-100 relative">
                                                 <img src={opt.imageUrl} className="w-full h-full object-cover"/>
                                             </div>
                                         ) : (
-                                            <div className="w-32 h-32 rounded-xl bg-gray-50 shrink-0 flex items-center justify-center border border-gray-100">
+                                            <div className="w-20 h-20 rounded-lg bg-gray-50 shrink-0 flex items-center justify-center border border-gray-100">
                                                 {/* Icon or Placeholder */}
-                                                <div className="w-8 h-8 rounded-full bg-gray-200"/>
+                                                <div className="w-6 h-6 rounded-full bg-gray-200"/>
                                             </div>
                                         )}
-                                        <div className="flex-1 py-1">
-                                            <h4 className={`font-bold text-lg leading-tight ${isSelected ? 'text-brand-black' : 'text-brand-black'}`}>{opt.name}</h4>
-                                            {opt.description && <p className="text-sm text-gray-500 mt-2 line-clamp-2 font-medium leading-relaxed">{opt.description}</p>}
-                                            {opt.tag && <span className="inline-block mt-3 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide bg-brand-red text-white shadow-sm">{opt.tag}</span>}
+                                        <div className="flex-1 py-0.5">
+                                            <h4 className={`font-bold text-base leading-tight ${isSelected ? 'text-brand-black' : 'text-brand-black'}`}>{opt.name}</h4>
+                                            {opt.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2 font-medium leading-relaxed">{opt.description}</p>}
+                                            {opt.tag && <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide bg-brand-red text-white shadow-sm">{opt.tag}</span>}
                                         </div>
                                     </div>
 
