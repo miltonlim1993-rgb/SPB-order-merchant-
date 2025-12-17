@@ -452,8 +452,8 @@ const FlowModal: React.FC<FlowModalProps> = ({
                         })}
                     </div>
                 ) : (
-                    // STANDARD LIST LAYOUT
-                    <div className="space-y-3">
+                    // COMPACT LIST LAYOUT (Setting Style)
+                    <div className="space-y-1">
                         {optionsToRender.map((opt, i) => {
                             const count = getOptionCount(opt.name);
                             const isSelected = count > 0;
@@ -465,68 +465,59 @@ const FlowModal: React.FC<FlowModalProps> = ({
                                         if(!allowQty) handleSelect(opt, 'toggle', maxGroupSelection);
                                     }}
                                     className={`
-                                        w-full p-3 rounded-xl border flex items-center justify-between transition-all duration-200 text-left group overflow-hidden
+                                        w-full p-2 rounded-lg flex items-center justify-between transition-all duration-200 text-left group
                                         ${isSelected 
-                                            ? 'border-brand-yellow bg-yellow-50/50 shadow-sm' 
-                                            : 'border-gray-100 bg-white hover:border-gray-200'
+                                            ? 'bg-yellow-50/50' 
+                                            : 'bg-white hover:bg-gray-50'
                                         }
                                         ${!allowQty ? 'cursor-pointer' : ''}
+                                        border-b border-gray-50 last:border-0
                                     `}
                                 >
-                                    <div className="flex items-center gap-4 flex-1">
-                                        {opt.imageUrl ? (
-                                            <div className="w-20 h-20 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-100 relative">
+                                    <div className="flex items-center gap-3 flex-1">
+                                        {opt.imageUrl && (
+                                            <div className="w-10 h-10 rounded-md bg-gray-50 overflow-hidden shrink-0">
                                                 <img src={opt.imageUrl} className="w-full h-full object-cover"/>
-                                            </div>
-                                        ) : (
-                                            <div className="w-20 h-20 rounded-lg bg-gray-50 shrink-0 flex items-center justify-center border border-gray-100">
-                                                {/* Icon or Placeholder */}
-                                                <div className="w-6 h-6 rounded-full bg-gray-200"/>
                                             </div>
                                         )}
                                         <div className="flex-1 py-0.5">
-                                            <h4 className={`font-bold text-base leading-tight ${isSelected ? 'text-brand-black' : 'text-brand-black'}`}>{opt.name}</h4>
-                                            {opt.description && <p className="text-xs text-gray-500 mt-1 line-clamp-2 font-medium leading-relaxed">{opt.description}</p>}
-                                            {opt.tag && <span className="inline-block mt-2 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wide bg-brand-red text-white shadow-sm">{opt.tag}</span>}
+                                            <h4 className={`font-bold text-sm leading-tight ${isSelected ? 'text-brand-black' : 'text-gray-700'}`}>{opt.name}</h4>
+                                            {opt.description && <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-1">{opt.description}</p>}
                                         </div>
                                     </div>
 
-                                    <div className="flex flex-col items-end justify-center gap-1 ml-3 pl-3 border-l border-gray-100 border-dashed min-w-[80px]">
-                                        {opt.price > 0 ? (
-                                            <span className="text-sm font-bold text-brand-black bg-white px-2 py-1 rounded shadow-sm border border-gray-100 whitespace-nowrap">+{formatPrice(opt.price)}</span>
-                                        ) : (
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Free</span>
+                                    <div className="flex items-center gap-3 ml-2">
+                                        {opt.price > 0 && (
+                                            <span className="text-xs font-bold text-gray-900">+{formatPrice(opt.price)}</span>
                                         )}
-                                        <div className="mt-2">
-                                            {allowQty ? (
-                                                // UPDATED QUANTITY SELECTOR (Pic 4)
-                                                <div className="flex items-center gap-0 bg-white rounded-lg border border-brand-black/20 p-1 shadow-sm h-10" onClick={e => e.stopPropagation()}>
-                                                    <button 
-                                                        onClick={() => handleSelect(opt, 'decrement', maxGroupSelection)}
-                                                        className={`w-10 h-full flex items-center justify-center rounded-l-md ${count > 0 ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'text-gray-300'}`}
-                                                        disabled={count === 0}
-                                                    >
-                                                        <Minus size={18} strokeWidth={3}/>
-                                                    </button>
-                                                    <div className="w-10 h-full flex items-center justify-center font-display font-bold text-lg bg-white text-black border-x border-gray-100">
-                                                        {count}
-                                                    </div>
-                                                    <button 
-                                                        onClick={() => handleSelect(opt, 'increment', maxGroupSelection)}
-                                                        className={`w-10 h-full flex items-center justify-center rounded-r-md bg-brand-black text-white hover:bg-gray-800`}
-                                                        disabled={maxGroupSelection ? localSelections.length >= maxGroupSelection : false}
-                                                    >
-                                                        <Plus size={18} strokeWidth={3}/>
-                                                    </button>
+                                        
+                                        {allowQty ? (
+                                            <div className="flex items-center gap-0 bg-white rounded-md border border-gray-200 shadow-sm h-8" onClick={e => e.stopPropagation()}>
+                                                <button 
+                                                    onClick={() => handleSelect(opt, 'decrement', maxGroupSelection)}
+                                                    className={`w-8 h-full flex items-center justify-center rounded-l-md ${count > 0 ? 'text-red-600 hover:bg-red-50' : 'text-gray-300'}`}
+                                                    disabled={count === 0}
+                                                >
+                                                    <Minus size={14} strokeWidth={3}/>
+                                                </button>
+                                                <div className="w-6 h-full flex items-center justify-center font-bold text-sm text-black border-x border-gray-100">
+                                                    {count}
                                                 </div>
+                                                <button 
+                                                    onClick={() => handleSelect(opt, 'increment', maxGroupSelection)}
+                                                    className={`w-8 h-full flex items-center justify-center rounded-r-md bg-brand-black text-white hover:bg-gray-800`}
+                                                    disabled={maxGroupSelection ? localSelections.length >= maxGroupSelection : false}
+                                                >
+                                                    <Plus size={14} strokeWidth={3}/>
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            isSelected ? (
+                                                <CheckCircle className="text-brand-yellow fill-brand-black" size={20} />
                                             ) : (
-                                                isSelected ? (
-                                                    <CheckCircle className="text-brand-yellow fill-brand-black" size={28} />
-                                                ) : (
-                                                    <div className="w-7 h-7 rounded-full border-2 border-gray-300 group-hover:border-gray-400 bg-white" />
-                                                )
-                                            )}
-                                        </div>
+                                                <div className="w-5 h-5 rounded-full border border-gray-300 group-hover:border-gray-400 bg-white" />
+                                            )
+                                        )}
                                     </div>
                                 </div>
                             );

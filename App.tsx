@@ -754,7 +754,42 @@ const App: React.FC = () => {
     const finalItem = { ...item, price: finalPrice };
 
     if (editingCartItemUuid) {
-        setCart(prev => prev.map(ci => ci.uuid === editingCartItemUuid ? { ...ci, selectedOptions, price: finalPrice, isCombo } : ci));
+        setCart(prev => {
+            const originalItem = prev.find(i => i.uuid === editingCartItemUuid);
+            
+            // If editing an item with Qty > 1, we should split it
+            if (originalItem && originalItem.qty > 1) {
+                // 1. Decrement the original item
+                const decrementedCart = prev.map(ci => ci.uuid === editingCartItemUuid ? { ...ci, qty: ci.qty - 1 } : ci);
+                
+                // 2. Add the new modified item (using standard Add logic to merge if exists)
+                const existingIdx = decrementedCart.findIndex(ci => 
+                    ci.menuItemId === finalItem.id && 
+                    JSON.stringify(ci.selectedOptions) === JSON.stringify(selectedOptions) && 
+                    ci.isCombo === isCombo
+                );
+                
+                if (existingIdx >= 0) {
+                    const newCart = [...decrementedCart];
+                    newCart[existingIdx].qty += 1;
+                    return newCart;
+                } else {
+                    return [...decrementedCart, { 
+                        uuid: crypto.randomUUID(), 
+                        menuItemId: finalItem.id, 
+                        name: finalItem.name, 
+                        price: finalItem.price, 
+                        selectedOptions, 
+                        qty: 1, 
+                        isCombo 
+                    }];
+                }
+            }
+            
+            // Standard Update (Qty 1)
+            return prev.map(ci => ci.uuid === editingCartItemUuid ? { ...ci, selectedOptions, price: finalPrice, isCombo } : ci);
+        });
+        
         setToastMessage(`Order updated!`);
         setEditingCartItemUuid(null);
         setIsCartOpen(true);
@@ -1202,7 +1237,7 @@ const App: React.FC = () => {
       
       {/* --- VERSION INDICATOR (FOR DEBUGGING UPDATE) --- */}
       <div className="fixed bottom-0 right-0 p-1 text-[10px] text-gray-300 pointer-events-none z-[1000] opacity-50">
-        v2.4
+        v2.5
       </div>
     </div>
   );
