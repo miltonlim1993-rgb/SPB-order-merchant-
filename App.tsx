@@ -56,6 +56,31 @@ const App: React.FC = () => {
         
         // Forced Refresh Check
         if (d?.config?.dataVersion && config.dataVersion && d.config.dataVersion > config.dataVersion && !isAdminOpen) {
+            // SAFEGUARD: Prevent rapid-fire reloads (loop protection)
+            const lastReload = parseInt(localStorage.getItem('SPB_LAST_RELOAD_TS') || '0');
+            const now = Date.now();
+            
+            if (now - lastReload < 5000) {
+                console.warn("Preventing rapid reload loop - applying update without reload");
+                // Just apply the data without reloading
+                if (d?.config) setConfig(d.config);
+                if (d?.outlets) setOutlets(d.outlets);
+                if (d?.menuItems) setMenuItems(d.menuItems);
+                initialSyncReadyRef.current = true;
+                setIsInitializing(false);
+                return;
+            }
+
+            try {
+                const payload = JSON.stringify({ 
+                    config: d.config || config, 
+                    outlets: d.outlets || outlets, 
+                    menuItems: d.menuItems || menuItems 
+                });
+                localStorage.setItem('SPB_APP_STATE_V2', payload);
+                localStorage.setItem('SPB_LAST_RELOAD_TS', now.toString());
+            } catch {}
+            
             window.location.reload();
             return;
         }
@@ -88,6 +113,29 @@ const App: React.FC = () => {
       
       // Force reload if version mismatch
       if (r?.config?.dataVersion && config.dataVersion && r.config.dataVersion > config.dataVersion && !isAdminOpen) {
+           // SAFEGUARD: Prevent rapid-fire reloads
+           const lastReload = parseInt(localStorage.getItem('SPB_LAST_RELOAD_TS') || '0');
+           const now = Date.now();
+           
+           if (now - lastReload < 5000) {
+                console.warn("Preventing rapid reload loop (legacy path) - applying update without reload");
+                if (r?.config) setConfig(prev => ({ ...prev, ...r.config }));
+                if (r?.outlets) setOutlets(r.outlets);
+                if (r?.menuitems) setMenuItems(r.menuitems);
+                initialSyncReadyRef.current = true;
+                setIsInitializing(false);
+                return;
+           }
+
+           try {
+                const payload = JSON.stringify({ 
+                    config: r.config || config, 
+                    outlets: r.outlets || outlets, 
+                    menuItems: r.menuitems || menuItems 
+                });
+                localStorage.setItem('SPB_APP_STATE_V2', payload);
+                localStorage.setItem('SPB_LAST_RELOAD_TS', now.toString());
+           } catch {}
            window.location.reload();
            return;
       }

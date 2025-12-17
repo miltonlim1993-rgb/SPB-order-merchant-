@@ -671,11 +671,11 @@ const FlowModal: React.FC<FlowModalProps> = ({
       {/* COMPACT ITEM CONTEXT HEADER (Sticky) */}
       {step !== 'Review' && step !== 'Variation' && step !== 'Meat' && (
           <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-3 flex items-center gap-4 shrink-0">
-             <div className="w-20 h-20 md:w-24 md:h-24 rounded-md bg-white overflow-hidden shrink-0">
+             <div className="w-24 h-24 rounded-md bg-white overflow-hidden shrink-0 shadow-sm border border-gray-100">
                  <img src={item.imageUrl} className="w-full h-full object-cover" />
              </div>
              <div className="flex-1 min-w-0">
-                 <h3 className="font-bold text-sm md:text-base text-gray-900 leading-tight uppercase tracking-wide break-words whitespace-normal">{item.name}</h3>
+                 <h3 className="font-bold text-base text-gray-900 leading-tight uppercase tracking-wide break-words whitespace-normal">{item.name}</h3>
                  <p className="text-xs text-gray-500 font-medium mt-1">
                     {step === 'Customization' ? 'Adjusting Ingredients' : 'Select options below'}
                  </p>
